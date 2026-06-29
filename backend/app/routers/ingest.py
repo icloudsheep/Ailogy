@@ -9,13 +9,14 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models, repo
 from ..deps import api_key_user
-from ..cursor import decode_cursor  # noqa: F401  (预留)
+from ..ratelimit import rate_limit
 from ailog_core.schema import Entry
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
 MAX_SUMMARY = 256 * 1024     # 单条正文上限 256KB
 MAX_BATCH = 200              # 单次批量条数上限
+_ingest_limit = rate_limit("ingest", limit=60, window=60)  # 同 IP 每分钟 60 次
 
 
 def _check_size(e: Entry):
@@ -25,7 +26,7 @@ def _check_size(e: Entry):
 
 @router.post("/entries")
 async def ingest_entries(request: Request, user: models.User = Depends(api_key_user),
-                         db: Session = Depends(get_db)):
+                         db: Session = Depends(get_db), _rl=Depends(_ingest_limit)):
     """接收单条或批量 entry，幂等 upsert 到该用户名下。
 
     请求体可为单个 entry 对象或 entry 数组。返回写入条数。

@@ -68,6 +68,16 @@ def platform_index():
     return FileResponse(os.path.join(_FRONTEND, "platform", "index.html"))
 
 
+@app.get("/u/{handle}")
+def user_viewer(handle: str):
+    """用户瀑布流入口 /u/{handle}：返回同一 viewer 壳。
+
+    实际展示的数据由登录会话决定（看自己）；handle 目前用于可读的入口地址，
+    公开分享走 /?share=token。后续可扩展为按 handle 直接公开他人页面。
+    """
+    return FileResponse(os.path.join(_FRONTEND, "viewer", "index.html"))
+
+
 # viewer 的 css/js 相对路径（./css ./js）需能解析：把 viewer 目录挂在根静态
 if os.path.isdir(os.path.join(_FRONTEND, "viewer")):
     app.mount("/css", StaticFiles(directory=os.path.join(_FRONTEND, "viewer", "css")), name="viewer-css")

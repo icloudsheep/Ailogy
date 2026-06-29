@@ -48,14 +48,43 @@ Ailogy/
 
 ## 状态
 
-开发中。里程碑：
+里程碑全部完成（M0–M5）：
 
 - **M0** 核心抽取 + FastAPI 骨架
 - **M1** 三视图瀑布流读取链路
 - **M2** 账号与密钥平台
 - **M3** CLI 上报双模式
 - **M4** 多用户隔离与公开分享
-- **M5** 安全加固
+- **M5** 安全加固（限流等）
+
+## 运行
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -e .   # 安装依赖
+# 启动后端（含静态前端）
+AILOGY_DB=./ailogy.db PYTHONPATH=packages:backend \
+  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+- 瀑布流页面：`http://127.0.0.1:8000/`（需登录）或 `/u/{handle}`；公开分享 `/?share=<token>`
+- 密钥平台：`http://127.0.0.1:8000/platform`（注册 / 登录 / 申请 / 密钥 / 审批）
+- 首个注册用户自动成为管理员；管理员也可用 `python scripts/admin.py list|approve|reject|make-admin`
+- 导入既有 ai-log 数据：`python scripts/import_datajson.py <ai-log 根目录>`
+
+CLI 双模式上报（在 `~/.config/ai-log/config.json` 配 `backend.url`/`api_key`/`report`，或用环境变量
+`AILOG_BACKEND_URL` / `AILOG_API_KEY`，或 `--report` 临时开启）：
+
+```bash
+ailog --report --title "标题" --summary "正文"   # 本地渲染 + 上报后端
+```
+
+## 安全说明
+
+- 密码 argon2id 哈希；API 密钥只存 sha256 + 前缀，明文仅创建时返回一次，可吊销。
+- 会话用服务端表 + httponly/SameSite=Lax cookie；登录/注册/申请/ingest 有 IP 限流（防爆破）。
+- 读取/编辑强制 user_id 归属校验（防 IDOR）；页面默认私有，公开是显式动作、转私即吊销分享链接。
+- ⚠️ 本地运行是**无 TLS 的明文 http**，仅限本机 / 内网。对外暴露务必置于 https 反向代理之后，
+  并把 cookie 的 `secure` 置 true、收紧 CORS 白名单。
 
 ## 许可证
 

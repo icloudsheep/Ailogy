@@ -14,10 +14,15 @@ from ..db import get_db
 from .. import models
 from ..security import hash_password, verify_password, new_token
 from ..deps import current_user, SESSION_COOKIE
+from ..ratelimit import rate_limit
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 SESSION_DAYS = 30
+
+# 限流依赖：防爆破/刷注册（同 IP 每分钟上限）
+_login_limit = rate_limit("login", limit=5, window=60)
+_register_limit = rate_limit("register", limit=5, window=60)
 
 
 class RegisterReq(BaseModel):
@@ -56,7 +61,8 @@ def _issue_session(db: Session, user: models.User, resp: Response):
 
 
 @router.post("/register")
-def register(req: RegisterReq, resp: Response, db: Session = Depends(get_db)):
+def register(req: RegisterReq, resp: Response, db: Session = Depends(get_db),
+             _rl=Depends(_register_limit)):
     if db.query(models.User).filter(models.User.email == req.email).first():
         raise HTTPException(409, "该邮箱已注册")
     handle = _derive_handle(req.email, req.handle)
@@ -71,7 +77,8 @@ def register(req: RegisterReq, resp: Response, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(req: LoginReq, resp: Response, db: Session = Depends(get_db)):
+def login(req: LoginReq, resp: Response, db: Session = Depends(get_db),
+          _rl=Depends(_login_limit)):
     user = db.query(models.User).filter(models.User.email == req.email).first()
     if not user or not verify_password(user.password_hash, req.password):
         raise HTTPException(401, "邮箱或密码错误")  # 不区分二者，防账号枚举
