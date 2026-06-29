@@ -4,6 +4,7 @@
 
 const NAV_LINKS = [
   { key: "viewer",   href: "/",         label: "瀑布流", emo: "🌊" },
+  { key: "account",  href: "/account",  label: "账户",   emo: "👤" },
   { key: "platform", href: "/platform", label: "密钥",   emo: "🔑" },
   { key: "settings", href: "/settings", label: "设置",   emo: "⚙️" },
   { key: "about",    href: "/about",    label: "关于",   emo: "ℹ️" },
@@ -13,16 +14,22 @@ function renderHeader(current) {
   const el = document.getElementById("app-header");
   if (!el) return;
   const title = el.dataset.title || "🗓️ Ailogy";
-  const slotHTML = el.innerHTML;  // 页面预置的中间槽内容（如搜索框）保留
+  // 第二行：页面可预置 <div id="header-row2">（如天/会话选择器），整体保留并置于顶行下方
+  const row2El = el.querySelector("#header-row2");
+  const row2HTML = row2El ? row2El.outerHTML : "";
+  if (row2El) row2El.remove();
+  const slotHTML = el.innerHTML;  // 顶行中部槽内容（如月份/搜索）
   el.classList.add("topbar");
   el.innerHTML =
-    `<a class="brand" href="/">${title}</a>`
+    `<div class="header-row">`
+    + `<a class="brand" href="/">${title}</a>`
     + `<div class="header-slot">${slotHTML}</div>`
     + `<nav class="header-nav">`
     + NAV_LINKS.map((n) =>
         `<a class="hnav${n.key === current ? " on" : ""}" href="${n.href}" title="${n.label}">`
         + `<span class="emo">${n.emo}</span><span class="hnav-label">${n.label}</span></a>`).join("")
-    + `</nav>`;
+    + `</nav></div>`
+    + row2HTML;
   syncTopbar();
   window.addEventListener("resize", syncTopbar);
   bindNavTransition();

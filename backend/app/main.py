@@ -63,9 +63,15 @@ def viewer_index():
     return FileResponse(os.path.join(_FRONTEND, "viewer", "index.html"))
 
 
+@app.get("/account")
+def account_index():
+    """账户页面（注册 / 登录 / 退出 / 个人信息）——与密钥分离。"""
+    return FileResponse(os.path.join(_FRONTEND, "account", "index.html"))
+
+
 @app.get("/platform")
 def platform_index():
-    """密钥平台页面（注册/登录/申请/密钥管理/审批）。"""
+    """密钥页面（密钥管理 / 申请 / 审批）——需登录，未登录跳账户页。"""
     return FileResponse(os.path.join(_FRONTEND, "platform", "index.html"))
 
 
@@ -104,6 +110,9 @@ if os.path.isdir(os.path.join(_FRONTEND, "viewer")):
 # 平台静态资源
 if os.path.isdir(os.path.join(_FRONTEND, "platform")):
     app.mount("/platform-assets", StaticFiles(directory=os.path.join(_FRONTEND, "platform")), name="platform-assets")
+# 账户页静态资源
+if os.path.isdir(os.path.join(_FRONTEND, "account")):
+    app.mount("/account-assets", StaticFiles(directory=os.path.join(_FRONTEND, "account")), name="account-assets")
 # 设置 / 关于页静态资源
 if os.path.isdir(os.path.join(_FRONTEND, "settings")):
     app.mount("/settings-assets", StaticFiles(directory=os.path.join(_FRONTEND, "settings")), name="settings-assets")

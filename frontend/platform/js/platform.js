@@ -1,4 +1,5 @@
-// 密钥平台前端：注册/登录、申请、密钥管理、（管理员）审批。纯 fetch + 同源 cookie。
+// 密钥页：密钥管理 + 申请 + （管理员）审批。需登录——未登录显示前往账户登录提示。
+// 登录/注册/个人信息已移至 /account。
 const $ = (id) => document.getElementById(id);
 const api = (path, opts = {}) => fetch(path, {
   credentials: "include",
@@ -18,52 +19,24 @@ function errText(detail) {
   return String(detail);
 }
 
-let pane = "login";  // login | register
-
 function showMsg(el, text, ok = false) { el.textContent = text; el.className = "msg " + (ok ? "ok" : "err"); }
-
-// ── 鉴权区切换 ──
-function bindTabs() {
-  document.querySelectorAll(".tab").forEach((t) => t.onclick = () => {
-    pane = t.dataset.pane;
-    document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x === t));
-    $("handle").hidden = pane !== "register";
-    $("submit").textContent = pane === "register" ? "注册" : "登录";
-    $("msg").textContent = "";
-  });
-}
-
-$("form").onsubmit = async (e) => {
-  e.preventDefault();
-  const email = $("email").value.trim(), password = $("password").value;
-  const path = pane === "register" ? "/api/auth/register" : "/api/auth/login";
-  const payload = pane === "register"
-    ? { email, password, handle: $("handle").value.trim() } : { email, password };
-  try {
-    await api(path, { method: "POST", body: JSON.stringify(payload) });
-    await refresh();
-  } catch (err) { showMsg($("msg"), err.message); }
-};
 
 $("apply-form").onsubmit = async (e) => {
   e.preventDefault();
   try {
     await api("/api/applications", { method: "POST", body: JSON.stringify({ reason: $("reason").value.trim() }) });
     await loadApplications();
-    // 自己若是管理员，同步刷新待审列表（能立刻看到刚提交的申请）
     if ($("who").textContent.includes("🛡")) await loadAdmin(true);
   } catch (err) { showMsg($("app-state"), err.message); }
 };
 
 $("newkey").onclick = async () => {
   try {
-    const r = await api("/api/keys", { method: "POST", body: JSON.stringify({ label: "自助创建" }) });
+    await api("/api/keys", { method: "POST", body: JSON.stringify({ label: "自助创建" }) });
     await loadKeys();
     showToast("已新建密钥，可在列表随时复制", { title: "密钥" });
   } catch (err) { showToast(err.message, { title: "出错", type: "err" }); }
 };
-
-$("logout").onclick = async () => { await api("/api/auth/logout", { method: "POST" }); location.reload(); };
 
 // ── 已登录区数据 ──
 async function loadApplications() {
@@ -128,16 +101,16 @@ async function loadAdmin(isAdmin) {
 async function refresh() {
   try {
     const me = await api("/api/auth/me");
-    $("auth").hidden = true; $("dash").hidden = false;
+    $("dash").hidden = false; $("need-login").hidden = true;
     $("who").textContent = `${me.email}${me.is_admin ? " 🛡" : ""}`;
     await Promise.all([loadApplications(), loadKeys(), loadAdmin(me.is_admin)]);
-    initDebugTag("front/platform");  // 登录态确定后再显示调试标识（仅管理员）
+    initDebugTag("front/platform");
   } catch {
-    $("auth").hidden = false; $("dash").hidden = true; $("who").textContent = "";
+    // 未登录：不显示任何密钥信息，只提示去账户登录
+    $("dash").hidden = true; $("need-login").hidden = false; $("who").textContent = "";
   }
 }
 
 renderHeader("platform");
-bindTabs();
 refresh();
 bindGlobalMenu();

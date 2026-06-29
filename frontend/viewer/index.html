@@ -23,15 +23,14 @@
 <svg class="link"><path id="linkpath"></path></svg>
 
 <header id="app-header" data-title="🗓️ Ailogy">
-  <button id="month-pick" class="month-pick">📅 <b id="month-label">…</b></button>
+  <button id="month-pick" class="month-pick">📅 <b id="month-label"></b></button>
   <div class="search-box"><input id="search-input" type="text" placeholder="🔍 搜索全部日志…" spellcheck="false" /></div>
+  <!-- 第二行：天 / 会话两级选择器（无会话时整体隐藏） -->
+  <div id="header-row2" class="caps" hidden>
+    <div class="cap-row"><span class="cap-tag">天</span><div id="cap-days" class="cap-list"></div></div>
+    <div class="cap-row"><span class="cap-tag">会话</span><div id="cap-sessions" class="cap-list"></div></div>
+  </div>
 </header>
-
-<!-- 天 / 会话两级胶囊（各自切显隐） -->
-<div class="caps">
-  <div class="cap-row"><span class="cap-tag">天</span><div id="cap-days" class="cap-list"></div></div>
-  <div class="cap-row"><span class="cap-tag">会话</span><div id="cap-sessions" class="cap-list"></div></div>
-</div>
 
 <!-- 泳道 + 详情 -->
 <div class="wrap">

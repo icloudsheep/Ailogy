@@ -7,11 +7,9 @@
 .month-pick b { font-variant-numeric: tabular-nums; }
 
 /* 胶囊两行 */
-/* 胶囊两行：紧贴页头下方（top 由 JS 按页头实际高度写入 --topbar-h） */
-.caps { position: sticky; top: var(--topbar-h, 56px); z-index: 15; padding: 10px clamp(16px,4vw,48px);
-  background: var(--lg-bg); border-bottom: var(--lg-border);
-  backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%);
-  display: flex; flex-direction: column; gap: 8px; }
+/* 胶囊两行：现位于 banner 内的第二行 */
+.caps { display: flex; flex-direction: column; gap: 8px; padding-top: 8px;
+  border-top: 1px solid var(--line); }
 .cap-row { display: flex; align-items: center; gap: 10px; }
 .cap-tag { flex: none; font-size: 11px; color: var(--dim); width: 30px; }
 .cap-list { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -30,10 +28,6 @@
 /* 天胶囊：色块用渐变（当日会话色） */
 .cap-swatch { width: 14px; height: 14px; border-radius: 4px; }
 
-/* 泳道天分隔头（stage 内绝对定位） */
-.day-row { position: absolute; left: 0; height: 64px; display: flex; align-items: center; gap: 8px;
-  font-size: 12px; font-weight: 650; color: var(--title-color); white-space: nowrap; padding-left: 4px; }
-.day-chip { width: 16px; height: 16px; border-radius: 5px; display: inline-block; }
 
 .stage .empty, .right .empty { color: var(--dim); padding: 40px 16px; text-align: center; }
 
@@ -73,3 +67,31 @@ html[data-mode="dark"] .f { background: rgba(200,215,255,.07); }
 .sr-snip { font-size: 12.5px; color: var(--txt); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 mark { background: color-mix(in srgb, #ffd166 70%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 html[data-mode="dark"] mark { background: color-mix(in srgb, #ffd166 40%, transparent); }
+
+/* 日期纵向圆角色带：跨过所有泳道，覆盖该天所有行；低透明填充 + 清晰日期标签 */
+.day-band { position: absolute; left: 0; z-index: 0; border-radius: 14px; overflow: hidden;
+  display: flex; align-items: flex-start; }
+.day-band-fill { position: absolute; inset: 0; opacity: .12; }
+html[data-mode="dark"] .day-band-fill { opacity: .2; }
+.day-band-label { position: relative; font-size: 11px; font-weight: 650; color: var(--title-color);
+  background: var(--lg-bg); border: var(--lg-border); border-radius: 8px; padding: 2px 8px; margin: 6px;
+  font-variant-numeric: tabular-nums; }
+/* 节点/泳道线在色带之上 */
+#stage .node { z-index: 3; }
+svg.rails { z-index: 1; }
+
+/* 改色模态 */
+.sw-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 14px 0; }
+.sw { width: 100%; aspect-ratio: 1; border-radius: 10px; border: 2px solid rgba(255,255,255,.6);
+  cursor: pointer; box-shadow: 0 2px 8px -2px rgba(40,50,90,.4); transition: transform .15s; }
+.sw:hover { transform: scale(1.1); }
+.sw-custom { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim); }
+.sw-input { width: 48px; height: 30px; border: none; background: none; cursor: pointer; }
+
+/* 居中空态（无任何内容时） */
+.empty-center { min-height: 50vh; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 12px; text-align: center; }
+.empty-main { font-size: 18px; font-weight: 650; color: var(--title-color); }
+.empty-sub { font-size: 13px; color: var(--dim); }
+.empty-sub a { color: color-mix(in srgb, #6ea8fe 72%, var(--txt)); text-decoration: none; }
+.empty-sub a:hover { color: #6ea8fe; text-decoration: underline; }

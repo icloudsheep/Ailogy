@@ -28,6 +28,8 @@ const ST = {
   hiddenSessions: new Set(),  // 隐藏的会话 code
   hiddenDays: new Set(),      // 隐藏的天
   active: null,           // 当前选中节点
+  loggedIn: true,         // 是否已登录（空态提示用）
+  hasAnyMonth: false,     // 是否有任何月份有记录（月份标签显示用）
 };
 
 const $ = (id) => document.getElementById(id);
@@ -39,13 +41,18 @@ async function loadMonth(month) {
     const r = await API.timeline(month);
     ST.month = r.month || (API.shareMode() ? "分享" : month);
     ST.entries = r.items;
+    ST.hiddenDays = new Set(); ST.hiddenSessions = new Set();  // 换月重置显隐
     buildModel();
+    // 有会话时清掉可能残留的空态 feed，并恢复详情占位
+    if (ST.sessions.length) {
+      $("feed").innerHTML = "";
+      $("detail").innerHTML = '<div class="box empty">👈 点击左侧节点查看该条日志</div>';
+    }
     render();
   } catch (err) {
     if (err instanceof AuthError) {
-      $("stage").innerHTML = "";
-      $("feed").innerHTML = `<div class="auth-gate"><p>需要登录后查看你的日志。</p>
-        <a class="gate-btn" href="/platform">前往登录 / 注册 →</a></div>`;
+      ST.loggedIn = false; ST.entries = []; ST.sessions = []; ST.days = [];
+      render();  // 走空态（未登录 → 提示登录）
     } else showToast("加载失败：" + err.message, { type: "err" });
   }
 }
@@ -87,9 +94,29 @@ function dayHasVisible(day) {
 
 // ── 渲染：胶囊两行 + 泳道 stage ──
 function render() {
+  const caps = $("header-row2");
+  const hasSessions = ST.sessions.length > 0;
+  // ② 无任何会话：隐藏天/会话选择器，泳道与详情区都显示居中空态
+  if (caps) caps.hidden = !hasSessions;
+  // ③ 无任何月有记录 → 月份标签留空（只显 📅）；否则显示当前月
+  $("month-label").textContent = ST.hasAnyMonth ? (ST.month || "") : "";
+  if (!hasSessions) { renderEmpty(); return; }
   renderCapsules();
   renderStage();
-  $("month-label").textContent = ST.month;
+}
+
+// 空态：页面中央一行「无任何[公开]内容」；未登录追加「公开」并给登录提示+链接
+function renderEmpty() {
+  const pub = (API.shareMode() || !ST.loggedIn) ? "公开" : "";
+  let html = `<div class="empty-center"><div class="empty-main">无任何${pub}内容</div>`;
+  if (!ST.loggedIn && !API.shareMode()) {
+    html += `<div class="empty-sub">登录后可查看与记录你自己的日志 · <a href="/platform">前往登录 / 注册 →</a></div>`;
+  }
+  html += `</div>`;
+  $("stage").innerHTML = "";
+  $("detail").innerHTML = "";
+  // 用 feed 承载居中空态（横跨整页中央）
+  $("feed").innerHTML = html;
 }
 
 // 天胶囊行 + 会话胶囊行（两行，各自切显隐）
@@ -129,11 +156,10 @@ function toggleDay(day) {
   render();
 }
 
-// 会话右键菜单：重命名 / 改色 / 恢复
-function sessionMenu(ev, code) {
-  const s = ST.sessions.find((x) => x.code === code);
+// 会话相关菜单项（会话胶囊右键、节点右键共用）
+function sessionMenuItems(code) {
   const items = [
-    { label: "✏️ 重命名", act: async () => {
+    { label: "✏️ 重命名会话", act: async () => {
       const v = await promptModal({ title: "自定义会话名称", desc: `会话 <b>${esc(code)}</b> · 留空恢复原名`,
                                     value: aliasOf(code) || "", placeholder: "易记名称" });
       if (v === null) return; saveAlias(code, v.trim()); render();
@@ -141,21 +167,56 @@ function sessionMenu(ev, code) {
     } },
     { label: "🎨 改主题色", act: () => pickColor(code) },
   ];
-  if (loadColors()[code]) items.push({ label: "↩️ 恢复默认色", act: () => { saveColor(code, ""); _autoIdx = 0; buildModel(); render(); } });
-  openMenu(ev, { head: `<span class="emo">${s.emoji}</span>${esc(code)}`, items });
+  if (loadColors()[code]) items.push({ label: "↩️ 恢复默认色",
+    act: () => { saveColor(code, ""); buildModel(); render(); showToast("已恢复默认色", { title: "会话" }); } });
+  return items;
 }
 
-// 简单取色：用一个隐藏 input[type=color]
-function pickColor(code) {
-  const inp = document.createElement("input");
-  inp.type = "color"; inp.value = toHex(colorOf(code));
-  inp.style.position = "fixed"; inp.style.left = "-9999px";
-  document.body.appendChild(inp);
-  inp.oninput = () => { saveColor(code, inp.value); buildModel(); render(); };
-  inp.onchange = () => { inp.remove(); showToast("已更新会话主题色", { title: "会话" }); };
-  inp.click();
+// 会话胶囊右键菜单
+function sessionMenu(ev, code) {
+  const s = ST.sessions.find((x) => x.code === code);
+  openMenu(ev, { head: `<span class="emo">${s.emoji}</span>${esc(code)}`, items: sessionMenuItems(code) });
 }
-function toHex(c) { return /^#/.test(c) ? c : "#6ea8fe"; }
+
+// 节点右键菜单：查看详情 + 该会话操作
+function nodeMenu(ev, e, node) {
+  cancelTip();
+  const s = ST.sessions.find((x) => x.code === e.session_code);
+  openMenu(ev, {
+    head: `<span class="emo">${e.emoji || "📝"}</span>${esc(e.title || sessDisplay(e.session_code, ""))}`,
+    items: [
+      { label: "👁️ 查看详情", act: () => selectNode(e, node) },
+      { sep: true },
+      ...sessionMenuItems(e.session_code),
+    ],
+  });
+}
+
+// 取色：弹一个居中模态——预设调色板 + 原生取色器，选中即时改色重渲染。
+// 不再依赖 off-screen input.click()（原生取色器在部分环境弹不出，是"改色无响应"的根因）。
+function pickColor(code) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  const swatches = PALETTE.map((c) =>
+    `<button class="sw" data-c="${c}" style="background:${c}"></button>`).join("");
+  overlay.innerHTML = `<div class="modal" role="dialog">
+      <div class="modal-title">会话主题色</div>
+      <div class="modal-desc">会话 <b>${esc(code)}</b> · 选预设或自定义</div>
+      <div class="sw-grid">${swatches}</div>
+      <div class="sw-custom">自定义 <input type="color" class="sw-input" value="${toHex(colorOf(code))}"></div>
+      <div class="modal-actions"><button class="modal-btn ok">完成</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("on"));
+  const apply = (c) => { saveColor(code, c); buildModel(); render(); };
+  overlay.querySelectorAll(".sw").forEach((b) => b.onclick = () => { apply(b.dataset.c); });
+  overlay.querySelector(".sw-input").addEventListener("input", (e) => apply(e.target.value));
+  const close = () => { overlay.classList.remove("on"); setTimeout(() => overlay.remove(), 240);
+    showToast("已更新会话主题色", { title: "会话" }); };
+  overlay.querySelector(".ok").onclick = close;
+  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+}
+function toHex(c) { return /^#[0-9a-fA-F]{6}$/.test(c) ? c : "#6ea8fe"; }
 
 // ── 泳道 stage：可见会话为列，可见天分段，节点按时间排列 ──
 function renderStage() {
@@ -182,7 +243,7 @@ function renderStage() {
   stage.style.width = W + "px"; stage.style.height = H + "px";
   stage.innerHTML = "";
 
-  // 泳道竖线（每个可见会话一列）
+  // 泳道竖线（每个可见会话一列）—— 左移给日期色带留出空间
   const svg = document.createElementNS(ns, "svg"); svg.setAttribute("class", "rails");
   visSessions.forEach((s) => {
     const x = COL_X0 + laneOf[s.code] * COL_W;
@@ -193,13 +254,27 @@ function renderStage() {
   });
   stage.appendChild(svg);
 
-  // 天分隔头
+  // 日期：纵向圆角矩形色带，跨过所有泳道（覆盖该天所有行的高度），左侧竖排日期文字。
+  // 计算每天占据的行范围 [firstRow, lastRow]
+  const dayRange = {};
+  vis.forEach((e, i) => {
+    const r = dayRange[e.day] || (dayRange[e.day] = { min: Infinity, max: -Infinity });
+    r.min = Math.min(r.min, rowOf[i]); r.max = Math.max(r.max, rowOf[i]);
+  });
   dayMarks.forEach((m) => {
-    const d = document.createElement("div");
-    d.className = "day-row"; d.style.top = (TOP_PAD + m.row * ROW_H) + "px";
+    const r = dayRange[m.day];
+    const top = TOP_PAD + m.row * ROW_H + 4;            // 从该天分隔行起
+    const bottom = TOP_PAD + (r.max + 1) * ROW_H - 4;   // 到该天末条目行底
     const dd = ST.days.find((x) => x.day === m.day);
-    d.innerHTML = `<span class="day-chip" style="background:${dd ? dd.color : "#888"}"></span> ${esc(m.day)}`;
-    stage.appendChild(d);
+    const band = document.createElement("div");
+    band.className = "day-band";
+    band.style.top = top + "px";
+    band.style.height = (bottom - top) + "px";
+    band.style.width = (W - 6) + "px";
+    // 低透明色带填充作为子层（不压暗标签）；标签独立、清晰可读
+    band.innerHTML = `<div class="day-band-fill" style="background:${dd ? dd.color : "#7884a0"}"></div>`
+      + `<span class="day-band-label">${esc(m.day)}</span>`;
+    stage.appendChild(band);
   });
 
   // 节点
@@ -211,10 +286,12 @@ function renderStage() {
     n.style.setProperty("--c", s.color); n.style.animationDelay = (i * 60) + "ms";
     const moon = e.carryover ? `<span class="moon">🌙</span>` : "";
     const rocket = e.mode === "full" ? `<span class="rocket">🚀</span>` : "";
-    n.innerHTML = `<div class="knob">${e.emoji || "📝"}<span class="num">${e.seq}</span>${moon}${rocket}</div>`;
+    // 节点只保留 emoji 与角标，不再显示序号/日期（日期由左侧纵向色带承载）
+    n.innerHTML = `<div class="knob">${e.emoji || "📝"}${moon}${rocket}</div>`;
     n.dataset.id = e.id;
     n.dataset.tip = e.title || sessDisplay(e.session_code, s.name);
     n.onclick = () => selectNode(e, n);
+    n.oncontextmenu = (ev) => { ev.preventDefault(); ev.stopPropagation(); nodeMenu(ev, e, n); };
     n.addEventListener("mouseenter", () => scheduleTip(n));
     n.addEventListener("mouseleave", cancelTip);
     stage.appendChild(n);
@@ -316,6 +393,16 @@ async function initViewer() {
   window.addEventListener("resize", drawLink);
   bindGlobalMenu();
   initDebugTag("front/viewer");
+  // 先探登录态与是否有任何月份记录（决定空态文案与月份标签是否显示 …）
+  if (!API.shareMode()) {
+    try {
+      const r = await API.months();
+      ST.loggedIn = true;
+      ST.hasAnyMonth = (r.months || []).length > 0;
+    } catch (err) {
+      if (err instanceof AuthError) ST.loggedIn = false;
+    }
+  } else { ST.hasAnyMonth = true; }
   await loadMonth(null);  // 默认本月
 }
 window.addEventListener("DOMContentLoaded", initViewer);

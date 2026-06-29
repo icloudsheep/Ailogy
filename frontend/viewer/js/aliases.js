@@ -15,7 +15,8 @@ function saveAlias(code, alias) {
   if (alias) m[code] = alias; else delete m[code];
   try { localStorage.setItem(ALIAS_KEY, JSON.stringify(m)); } catch (_) {}
 }
-// 展示名：有别名用别名，否则用会话原 name 或 code
-function sessDisplay(code, fallbackName) {
-  return aliasOf(code) || fallbackName || code;
+// 展示名：有别名用别名，否则用会话代号（动物+后四位，如 Eagle-7517，与本地 ai-log 一致）。
+// 注意不要回退到 name（那只是 "Eagle"，丢了后缀）。
+function sessDisplay(code, _fallbackName) {
+  return aliasOf(code) || code;
 }

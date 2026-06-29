@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ailogy · 密钥平台</title>
+<title>Ailogy · 密钥</title>
 <script>
   try {
     document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
@@ -15,25 +15,9 @@
 </head>
 <body>
 <div class="bg"></div>
-<header id="app-header" data-title="🔑 Ailogy 密钥平台"><span id="who" class="who"></span></header>
+<header id="app-header" data-title="🔑 Ailogy 密钥"><span id="who" class="who"></span></header>
 
 <main class="wrap">
-  <!-- 未登录：注册/登录 -->
-  <section id="auth" class="box" hidden>
-    <div class="tabs">
-      <button class="tab on" data-pane="login">登录</button>
-      <button class="tab" data-pane="register">注册</button>
-    </div>
-    <div id="msg" class="msg"></div>
-    <form id="form">
-      <input id="email" type="email" placeholder="邮箱" autocomplete="email" required />
-      <input id="password" type="password" placeholder="密码（≥8 位）" autocomplete="current-password" required />
-      <input id="handle" type="text" placeholder="用户名 handle（注册可选，用于页面地址 /u/xxx）" hidden />
-      <button id="submit" type="submit">登录</button>
-    </form>
-  </section>
-
-  <!-- 已登录：密钥 + 申请 -->
   <section id="dash" hidden>
     <div class="box">
       <div class="bt">我的密钥 <button id="newkey" class="mini">+ 新建密钥</button></div>
@@ -52,7 +36,11 @@
       <div class="bt">🛡 待审批申请</div>
       <div id="admin-apps"></div>
     </div>
-    <button id="logout" class="mini">退出登录</button>
+  </section>
+  <!-- 未登录提示 -->
+  <section id="need-login" class="box" hidden>
+    <p class="hint">管理密钥需要先登录。</p>
+    <a class="mini" href="/account">👤 前往账户登录 →</a>
   </section>
 </main>
 

@@ -324,10 +324,12 @@
   .pagecap .emo { font-size: 14px; }
 
   /* ── 公用页头（banner，所有页面一致）── */
-  .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 16px;
-    padding: 14px clamp(16px,4vw,48px); background: var(--lg-bg); border-bottom: var(--lg-border);
+  .topbar { position: sticky; top: 0; z-index: 20; padding: 12px clamp(16px,4vw,48px);
+    background: var(--lg-bg); border-bottom: var(--lg-border);
     backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
-    box-shadow: 0 8px 24px -16px rgba(40,50,90,.4), var(--lg-inset); flex-wrap: wrap; }
+    box-shadow: 0 8px 24px -16px rgba(40,50,90,.4), var(--lg-inset);
+    display: flex; flex-direction: column; gap: 10px; }
+  .header-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .topbar .brand { font-size: 20px; font-weight: 700; color: var(--title-color); text-decoration: none;
     white-space: nowrap; }
   .header-slot { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
