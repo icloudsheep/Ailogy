@@ -93,7 +93,15 @@ async function loadMore() {
     if (!state.cursor) { state.done = true; setStatus("到底了"); }
     else setStatus("");
   } catch (err) {
-    setStatus("加载失败：" + err.message);
+    if (err instanceof AuthError) {
+      state.done = true;
+      feed().innerHTML = `<div class="auth-gate">
+        <p>需要登录后查看你的日志。</p>
+        <a class="gate-btn" href="/platform">前往登录 / 注册 →</a></div>`;
+      setStatus("");
+    } else {
+      setStatus("加载失败：" + err.message);
+    }
   } finally {
     state.loading = false;
   }
@@ -155,6 +163,12 @@ function setStatus(msg) {
 
 // ── 初始化 ──
 function initViewer() {
+  // 公开分享模式：隐藏视图切换与搜索（只读单一 scope 的全量流）
+  if (API.shareMode()) {
+    document.querySelector(".views")?.setAttribute("hidden", "");
+    document.querySelector(".search-box")?.setAttribute("hidden", "");
+    document.querySelector("h1").textContent = "🔗 Ailogy · 分享";
+  }
   // 视图切换标签
   document.querySelectorAll(".view-tab").forEach((t) => {
     t.onclick = () => switchView(t.dataset.view);

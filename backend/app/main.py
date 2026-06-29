@@ -43,12 +43,13 @@ def health():
 
 
 # 路由挂载
-from .routers import entries, auth, applications, keys, ingest  # noqa: E402
+from .routers import entries, auth, applications, keys, ingest, share  # noqa: E402
 app.include_router(entries.router)
 app.include_router(auth.router)
 app.include_router(applications.router)
 app.include_router(keys.router)
 app.include_router(ingest.router)
+app.include_router(share.router)
 
 
 # 用户瀑布流页面（M1：暂直接服务 viewer 壳；M4 起按 /u/{handle} 注入用户标识）
