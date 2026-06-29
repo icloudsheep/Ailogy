@@ -42,6 +42,27 @@ def health():
     return {"status": "ok", "db": DB_PATH}
 
 
+# 路由挂载
+from .routers import entries  # noqa: E402
+app.include_router(entries.router)
+
+
+# 用户瀑布流页面（M1：暂直接服务 viewer 壳；M4 起按 /u/{handle} 注入用户标识）
+from fastapi.responses import FileResponse  # noqa: E402
+
+
+@app.get("/")
+def viewer_index():
+    """根路径返回瀑布流页面壳。"""
+    return FileResponse(os.path.join(_FRONTEND, "viewer", "index.html"))
+
+
+# viewer 的 css/js 相对路径（./css ./js）需能解析：把 viewer 目录挂在根静态
+if os.path.isdir(os.path.join(_FRONTEND, "viewer")):
+    app.mount("/css", StaticFiles(directory=os.path.join(_FRONTEND, "viewer", "css")), name="viewer-css")
+    app.mount("/js", StaticFiles(directory=os.path.join(_FRONTEND, "viewer", "js")), name="viewer-js")
+
+
 # 静态资产：vendor 下的 mermaid/katex/version 等（前端页面引用）
 if os.path.isdir(_VENDOR):
     app.mount("/static/vendor", StaticFiles(directory=_VENDOR), name="vendor")
