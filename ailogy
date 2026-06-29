@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Ailogy 统一运维入口。用法：./ailogy <命令> [参数]
+#
+#   start            启动后端（前台；Ctrl+C 停）
+#   start --reload   开发模式（改代码自动重启）
+#   daemon           后台启动（写 PID 到 .ailogy.pid，日志到 ailogy.log）
+#   stop             停止后台进程
+#   restart          重启后台进程
+#   status           查看运行状态
+#   logs             跟踪后台日志（tail -f）
+#
+#   review           交互式逐条审批待审的密钥申请（推荐）
+#   apps             列出待审密钥申请
+#   approve <id> [备注]   批准某申请并打印明文密钥
+#   reject  <id> <理由>   拒绝某申请
+#   make-admin <邮箱>     把某用户升级为管理员
+#
+# 配置（DB/HOST/PORT/CORS…）走仓库根 .env；PYTHONPATH 由本脚本设置。
+set -euo pipefail
+cd "$(dirname "$0")"
+
+PY=".venv/bin/python"
+PIDFILE=".ailogy.pid"
+LOGFILE="ailogy.log"
+export PYTHONPATH="packages:backend"
+
+[ -f .env ] || cp .env.example .env
+[ -x "$PY" ] || { echo "❌ 未找到 .venv，请先：python3 -m venv .venv && .venv/bin/pip install -e ." >&2; exit 1; }
+
+_host() { grep -E '^AILOGY_HOST=' .env | tail -1 | cut -d= -f2- | grep . || echo 127.0.0.1; }
+_port() { grep -E '^AILOGY_PORT=' .env | tail -1 | cut -d= -f2- | grep . || echo 8000; }
+
+_running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+
+cmd_start() {
+  local H P; H=$(_host); P=$(_port)
+  echo "🚀 http://$H:$P  （账户 /account · 密钥 /platform · 设置 /settings · 关于 /about）"
+  exec "$PY" -m uvicorn app.main:app --host "$H" --port "$P" "$@"
+}
+
+cmd_daemon() {
+  if _running; then echo "ℹ️ 已在运行（PID $(cat "$PIDFILE")），用 restart 重启"; return; fi
+  local H P; H=$(_host); P=$(_port)
+  nohup "$PY" -m uvicorn app.main:app --host "$H" --port "$P" > "$LOGFILE" 2>&1 &
+  echo $! > "$PIDFILE"
+  sleep 1
+  echo "🚀 后台启动 PID $(cat "$PIDFILE")  http://$H:$P  （日志：${LOGFILE}）"
+}
+
+cmd_stop() {
+  if _running; then kill "$(cat "$PIDFILE")"; rm -f "$PIDFILE"; echo "🛑 已停止"; else echo "ℹ️ 未在运行"; fi
+}
+
+cmd_status() {
+  if _running; then echo "✅ 运行中（PID $(cat "$PIDFILE")）  http://$(_host):$(_port)"; else echo "⛔ 未运行"; fi
+}
+
+admin() { "$PY" scripts/admin.py "$@"; }
+
+case "${1:-}" in
+  start)      shift; cmd_start "$@" ;;
+  daemon)     cmd_daemon ;;
+  stop)       cmd_stop ;;
+  restart)    cmd_stop; sleep 1; cmd_daemon ;;
+  status)     cmd_status ;;
+  logs)       tail -f "$LOGFILE" ;;
+  review)     admin review ;;
+  apps|list)  admin list ;;
+  approve)    shift; admin approve "$@" ;;
+  reject)     shift; admin reject "$@" ;;
+  make-admin) shift; admin make-admin "$@" ;;
+  ""|-h|--help|help)
+    sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//' ;;
+  *) echo "未知命令：$1（用 ./ailogy help 查看）" >&2; exit 1 ;;
+esac

@@ -60,16 +60,28 @@ python3 -m venv .venv
 .venv/bin/pip install -e .          # 安装后端 + CLI 及依赖
 ```
 
-### 2. 启动
+### 2. 启动与运维
+
+统一运维入口 `./ailogy`（也可用 `./run.sh` 前台启动）：
 
 ```bash
-./run.sh            # 一键启动（首次会自动从 .env.example 生成 .env）
-./run.sh --reload   # 开发模式：改代码自动重启
+./ailogy daemon          # 后台启动（PID→.ailogy.pid，日志→ailogy.log）
+./ailogy start           # 前台启动（Ctrl+C 停；start --reload 开发热重载）
+./ailogy status          # 查看运行状态
+./ailogy restart         # 重启
+./ailogy stop            # 停止
+./ailogy logs            # 跟踪日志
+
+# 管理员运维
+./ailogy review          # 交互式逐条审批待审的密钥申请（推荐）
+./ailogy apps            # 列出待审申请
+./ailogy approve <id> [备注]   # 批准并打印明文密钥
+./ailogy reject  <id> <理由>   # 拒绝
+./ailogy make-admin <邮箱>     # 升级为管理员
 ```
 
-> `run.sh` 内部设置 `PYTHONPATH`（解释器启动前必须就位，无法写进 .env），其余配置
-> （DB 路径 / HOST / PORT / CORS / cookie / 版本）都从仓库根 `.env` 读取。
-> 想改端口、库路径等，编辑 `.env`（参照 `.env.example`）即可，不必碰命令行。
+> 配置（DB 路径 / HOST / PORT / CORS / cookie / 版本）都从仓库根 `.env` 读取（参照
+> `.env.example`，首次运行自动生成）；`PYTHONPATH` 由脚本设置（解释器启动前必须就位，无法写进 .env）。
 
 启动后访问下列页面：
 
@@ -88,14 +100,15 @@ python3 -m venv .venv
 
 1. **注册**（首个注册的用户自动成为管理员）。
 2. 在「申请 API 密钥」提交申请，或直接「+ 自助新建」一个密钥。
-3. 管理员可在平台页或用 CLI 审批：
+3. 管理员可在密钥页审批，或用统一入口：
    ```bash
-   .venv/bin/python scripts/admin.py list                 # 看待审申请
-   .venv/bin/python scripts/admin.py approve <id> [备注]    # 批准并打印明文密钥（仅一次）
-   .venv/bin/python scripts/admin.py reject  <id> <理由>    # 拒绝
-   .venv/bin/python scripts/admin.py make-admin <邮箱>      # 提升为管理员
+   ./ailogy review                 # 交互式逐条审批（推荐）
+   ./ailogy apps                   # 列待审申请
+   ./ailogy approve <id> [备注]     # 批准并打印明文密钥
+   ./ailogy reject  <id> <理由>     # 拒绝
+   ./ailogy make-admin <邮箱>       # 提升为管理员
    ```
-4. **密钥明文只在创建时显示一次**，请妥善保存（库里只存哈希）。
+4. 密钥**明文存库、随时可在密钥页复制**（个人自托管的有意取舍）；删除不可逆。
 
 ### 4. 配置 CLI 上报
 

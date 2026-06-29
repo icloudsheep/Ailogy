@@ -31,3 +31,7 @@ node_modules/
 # 测试缓存
 .pytest_cache/
 .coverage
+
+# 运维脚本运行时产物
+.ailogy.pid
+ailogy.log
