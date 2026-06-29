@@ -1,0 +1,34 @@
+  /* markdown 排版 */
+  .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
+  .md { font-size: 14.5px; line-height: 1.7; color: var(--txt); }
+  .md h1,.md h2,.md h3,.md h4,.md h5,.md h6 { margin: 14px 0 8px; line-height: 1.3; font-weight: 680; }
+  .md h1 { font-size: 18px; } .md h2 { font-size: 16px; } .md h3 { font-size: 14.5px; color: var(--dim); }
+  .md h4 { font-size: 13.5px; color: var(--dim); } .md h5 { font-size: 13px; color: var(--dim); }
+  .md h6 { font-size: 12.5px; color: var(--dim); font-weight: 650; }
+  /* mermaid 图：磨砂浅底容器，超宽时横向滚动（不压缩图，保自然尺寸） */
+  .md .mermaid { margin: 12px 0; padding: 12px; border-radius: 12px; overflow-x: auto;
+    background: linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.3));
+    border: 1px solid rgba(255,255,255,.6); box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    text-align: center; }
+  .md .mermaid svg { max-width: none; height: auto; }
+  .md .mermaid[data-failed] { text-align: left; color: #b4453a; font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  /* LaTeX 公式：块级居中、超宽横向滚动；行内随文。渲染失败回退红色等宽源码 */
+  .md .math-block { margin: 12px 0; overflow-x: auto; overflow-y: hidden; text-align: center; padding: 4px 0; }
+  .md .math-inline { padding: 0 1px; }
+  .md .math-block[data-failed], .md .math-inline[data-failed] {
+    color: #b4453a; font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  /* KaTeX 颜色随主题文字色（亮/暗/报纸通用） */
+  .md .katex { color: var(--txt); font-size: 1.05em; }
+  .md p { margin: 8px 0; } .md ul,.md ol { margin: 8px 0; padding-left: 22px; } .md li { margin: 3px 0; }
+  .md a { color: color-mix(in srgb, var(--c) 60%, #1c2438); text-decoration: none; border-bottom: 1px dashed currentColor; }
+  .md code { background: rgba(40,50,90,.1); padding: 1.5px 6px; border-radius: 5px; font: 12.5px/1.5 ui-monospace, Menlo, monospace; }
+  .md pre { background: rgba(40,50,90,.08); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 10px 0; }
+  .md pre code { background: none; padding: 0; }
+  .md blockquote { margin: 10px 0; padding: 4px 14px; border-left: 3px solid var(--c); color: var(--dim); background: rgba(40,50,90,.05); border-radius: 0 8px 8px 0; }
+  .md table { border-collapse: collapse; margin: 10px 0; width: 100%; font-size: 13px; }
+  .md th,.md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  .md th { background: color-mix(in srgb, var(--c) 22%, transparent); font-weight: 650; }
+  .md tr:nth-child(even) td { background: rgba(40,50,90,.04); }
+  .md hr { border: none; border-top: 1px dashed var(--line); margin: 12px 0; }
+  .md strong { color: var(--title-color); } .md em { color: var(--dim); }
+

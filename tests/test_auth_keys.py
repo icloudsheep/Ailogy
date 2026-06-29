@@ -97,9 +97,12 @@ def test_self_create_and_revoke_key():
         k = c.post("/api/keys", json={"label": "我的密钥"})
         assert k.json()["api_key"].startswith("ak_")
         kid = k.json()["key"]["id"]
-        assert len(c.get("/api/keys").json()) == 1
+        keys = c.get("/api/keys").json()
+        assert len(keys) == 1
+        assert keys[0]["secret"] == k.json()["api_key"]  # 明文随时可复制
+        # 删除（不可逆，列表清空）
         assert c.delete(f"/api/keys/{kid}").status_code == 200
-        assert c.get("/api/keys").json()[0]["revoked"] is True
+        assert c.get("/api/keys").json() == []
 
 
 def test_admin_endpoint_requires_admin():

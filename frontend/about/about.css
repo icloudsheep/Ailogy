@@ -1,0 +1,13 @@
+.wrap { max-width: 600px; margin: 0 auto; padding: 40px clamp(16px,4vw,48px) 80px; }
+.about-box { position: relative; overflow: hidden; text-align: center; padding: 40px 32px; }
+.fireworks { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; opacity: .5; }
+.about-body { position: relative; z-index: 1; }
+.about-logo { font-size: 54px; }
+.about-name { font-size: 26px; font-weight: 720; color: var(--title-color); margin-top: 6px; }
+.about-ver { font-size: 14px; color: var(--dim); margin-top: 6px; }
+.about-ver b { color: var(--title-color); font-variant-numeric: tabular-nums; }
+.about-desc { font-size: 13.5px; color: var(--txt); line-height: 1.7; margin: 18px auto; max-width: 460px; }
+.about-repo { display: inline-block; margin-top: 4px; font-size: 13px;
+  color: color-mix(in srgb, #6ea8fe 72%, var(--txt)); text-decoration: none; word-break: break-all; }
+.about-repo:hover { color: #6ea8fe; text-decoration: underline; }
+.about-copy { margin-top: 22px; font-size: 11.5px; color: var(--dim); }

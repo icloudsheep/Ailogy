@@ -74,7 +74,8 @@ def approve(app_id: int, req: ReviewReq, admin=Depends(require_admin),
     plain, prefix, key_hash = new_api_key()
     a.status = "approved"; a.reviewed_by = admin.id; a.review_note = req.note
     a.reviewed_at = datetime.utcnow()
-    key = models.ApiKey(user_id=a.user_id, prefix=prefix, key_hash=key_hash, label="审批发放")
+    key = models.ApiKey(user_id=a.user_id, prefix=prefix, key_hash=key_hash,
+                        secret=plain, label="审批发放")
     db.add(key); db.commit()
     # 明文仅返回一次，库里只存哈希
     return {"application": _app_dict(a), "api_key": plain, "prefix": prefix}

@@ -78,6 +78,24 @@ def user_viewer(handle: str):
     return FileResponse(os.path.join(_FRONTEND, "viewer", "index.html"))
 
 
+@app.get("/settings")
+def settings_index():
+    """设置页面（主题等偏好，纯前端 localStorage）。"""
+    return FileResponse(os.path.join(_FRONTEND, "settings", "index.html"))
+
+
+@app.get("/about")
+def about_index():
+    """关于页面（版本 / GitHub / 更新检查）。"""
+    return FileResponse(os.path.join(_FRONTEND, "about", "index.html"))
+
+
+@app.get("/api/version")
+def version():
+    """版本信息（供关于页与更新检查）。"""
+    return {"version": "0.1.0", "repo": "https://github.com/icloudsheep/Ailogy"}
+
+
 # viewer 的 css/js 相对路径（./css ./js）需能解析：把 viewer 目录挂在根静态
 if os.path.isdir(os.path.join(_FRONTEND, "viewer")):
     app.mount("/css", StaticFiles(directory=os.path.join(_FRONTEND, "viewer", "css")), name="viewer-css")
@@ -85,6 +103,11 @@ if os.path.isdir(os.path.join(_FRONTEND, "viewer")):
 # 平台静态资源
 if os.path.isdir(os.path.join(_FRONTEND, "platform")):
     app.mount("/platform-assets", StaticFiles(directory=os.path.join(_FRONTEND, "platform")), name="platform-assets")
+# 设置 / 关于页静态资源
+if os.path.isdir(os.path.join(_FRONTEND, "settings")):
+    app.mount("/settings-assets", StaticFiles(directory=os.path.join(_FRONTEND, "settings")), name="settings-assets")
+if os.path.isdir(os.path.join(_FRONTEND, "about")):
+    app.mount("/about-assets", StaticFiles(directory=os.path.join(_FRONTEND, "about")), name="about-assets")
 
 
 # 静态资产：vendor 下的 mermaid/katex/version 等（前端页面引用）

@@ -107,13 +107,14 @@ async function loadMore() {
   }
 }
 
-// 按 session 视图第一层：会话卡片列表，点击进入该会话
+// 按 session 视图第一层：会话卡片列表，点击进入该会话；右键改别名
 function appendSessions(items) {
   const html = items.map((s) => {
     const c = colorOf(s.session_code);
-    return `<div class="sess-card" data-code="${esc(s.session_code)}" style="--c:${c}">
+    const name = sessDisplay(s.session_code, s.name);
+    return `<div class="sess-card" data-code="${esc(s.session_code)}" data-name="${esc(s.name || s.session_code)}" style="--c:${c}">
       <span class="c-emo">${s.emoji || "📝"}</span>
-      <span class="sess-name">${esc(s.name || s.session_code)}</span>
+      <span class="sess-name">${esc(name)}</span>
       <span class="sess-cnt">${s.cnt} 条</span>
       <span class="c-meta">最近 ${esc(fmtAt(s.last_activity))}</span>
     </div>`;
@@ -122,7 +123,33 @@ function appendSessions(items) {
   feed().querySelectorAll(".sess-card:not([data-bound])").forEach((el) => {
     el.dataset.bound = "1";
     el.onclick = () => enterSession(el.dataset.code, el.querySelector(".sess-name").textContent);
+    el.oncontextmenu = (ev) => { ev.preventDefault(); ev.stopPropagation(); openSessionMenu(ev, el); };
   });
+}
+
+// 会话右键菜单：重命名 / 恢复原名
+function openSessionMenu(ev, el) {
+  const code = el.dataset.code, origName = el.dataset.name;
+  const items = [
+    { label: "✏️ 重命名", act: () => renameSession(code, origName, el) },
+  ];
+  if (aliasOf(code)) items.push({ label: "↩️ 恢复原名", act: () => {
+    saveAlias(code, ""); el.querySelector(".sess-name").textContent = origName;
+    showToast("已恢复原名", { title: "会话" });
+  } });
+  openMenu(ev, { head: `<span class="emo">${el.querySelector(".c-emo").textContent}</span>${esc(code)}`, items });
+}
+
+async function renameSession(code, origName, el) {
+  const cur = aliasOf(code) || "";
+  const input = await promptModal({
+    title: "自定义会话名称", desc: `会话 <b>${esc(code)}</b> · 留空恢复原名`,
+    value: cur, placeholder: "输入易记的名称",
+  });
+  if (input === null) return;
+  saveAlias(code, input.trim());
+  el.querySelector(".sess-name").textContent = sessDisplay(code, origName);
+  showToast(input.trim() ? `已重命名为「${input.trim()}」` : "已恢复原名", { title: "会话" });
 }
 
 function enterSession(code, name) {
@@ -180,6 +207,9 @@ function initViewer() {
   }, { rootMargin: "400px" });
   io.observe(sentinel());
   loadMore();
+  // 共享 UI：空白右键弹页面菜单（主题/设置/关于）+ 左下角导航胶囊（仅管理员）
+  bindGlobalMenu();
+  if (!API.shareMode()) initPageNav("viewer");
 }
 
 window.addEventListener("DOMContentLoaded", initViewer);

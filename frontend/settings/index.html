@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ailogy · 设置</title>
+<script>
+  try {
+    document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
+    document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="/static/frontend/shared/css/theme.css">
+<link rel="stylesheet" href="/settings-assets/settings.css">
+</head>
+<body>
+<div class="bg"></div>
+<header class="topbar"><h1>⚙️ 设置</h1></header>
+<main class="wrap">
+  <section class="box">
+    <div class="bt">外观风格</div>
+    <div class="opt-row" id="style-row">
+      <button class="opt" data-style="glass">🫧 玻璃</button>
+      <button class="opt" data-style="neumorphism">🧊 拟态</button>
+      <button class="opt" data-style="newspaper">📰 报纸</button>
+    </div>
+  </section>
+  <section class="box">
+    <div class="bt">明暗模式</div>
+    <div class="opt-row" id="mode-row">
+      <button class="opt" data-mode="light">☀️ 光明</button>
+      <button class="opt" data-mode="dark">🌙 黑暗</button>
+    </div>
+  </section>
+  <section class="box">
+    <div class="bt">导航</div>
+    <div class="opt-row">
+      <a class="opt" href="/">🌊 瀑布流</a>
+      <a class="opt" href="/platform">🔑 密钥平台</a>
+      <a class="opt" href="/about">ℹ️ 关于</a>
+    </div>
+  </section>
+</main>
+<script src="/static/frontend/shared/js/utils.js"></script>
+<script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/page-nav.js"></script>
+<script src="/settings-assets/settings.js"></script>
+</body>
+</html>

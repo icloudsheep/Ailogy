@@ -1,0 +1,21 @@
+// 会话别名：右键会话改易记名称，写浏览器 localStorage（跨页面同源共享）。
+// 在线端先做本地软别名（够用、零后端改动）；展示处用 aliasOf() 覆盖原 session 名。
+const ALIAS_KEY = "ailogy:aliases";
+
+function loadAliases() {
+  try { const v = JSON.parse(localStorage.getItem(ALIAS_KEY) || "{}"); return v && typeof v === "object" ? v : {}; }
+  catch (_) { return {}; }
+}
+function aliasOf(code) {
+  const m = loadAliases();
+  return code in m ? m[code] : null;
+}
+function saveAlias(code, alias) {
+  const m = loadAliases();
+  if (alias) m[code] = alias; else delete m[code];
+  try { localStorage.setItem(ALIAS_KEY, JSON.stringify(m)); } catch (_) {}
+}
+// 展示名：有别名用别名，否则用会话原 name 或 code
+function sessDisplay(code, fallbackName) {
+  return aliasOf(code) || fallbackName || code;
+}

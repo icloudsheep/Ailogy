@@ -4,14 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ailogy · 密钥平台</title>
+<script>
+  try {
+    document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
+    document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="/static/frontend/shared/css/theme.css">
 <link rel="stylesheet" href="/platform-assets/css/platform.css">
 </head>
 <body>
+<div class="bg"></div>
 <header class="topbar"><h1>🔑 Ailogy 密钥平台</h1><span id="who" class="who"></span></header>
 
 <main class="wrap">
   <!-- 未登录：注册/登录 -->
-  <section id="auth" class="card" hidden>
+  <section id="auth" class="box" hidden>
     <div class="tabs">
       <button class="tab on" data-pane="login">登录</button>
       <button class="tab" data-pane="register">注册</button>
@@ -25,27 +33,32 @@
     </form>
   </section>
 
-  <!-- 已登录：申请 + 密钥管理 -->
+  <!-- 已登录：密钥 + 申请 -->
   <section id="dash" hidden>
-    <div class="card">
-      <h2>申请 API 密钥</h2>
+    <div class="box">
+      <div class="bt">我的密钥 <button id="newkey" class="mini">+ 新建密钥</button></div>
+      <p class="hint">密钥明文随时可复制（个人自托管）；删除不可逆。</p>
+      <div id="keys"></div>
+    </div>
+    <div class="box">
+      <div class="bt">申请 API 密钥（可选，走管理员审批）</div>
       <div id="app-state" class="msg"></div>
       <form id="apply-form">
         <textarea id="reason" placeholder="申请理由（可选）"></textarea>
         <button type="submit">提交申请</button>
       </form>
     </div>
-    <div class="card">
-      <h2>我的密钥 <button id="newkey" class="mini">+ 自助新建</button></h2>
-      <div id="keys"></div>
-    </div>
-    <div class="card" id="admin-card" hidden>
-      <h2>🛡 待审批申请</h2>
+    <div class="box" id="admin-card" hidden>
+      <div class="bt">🛡 待审批申请</div>
       <div id="admin-apps"></div>
     </div>
     <button id="logout" class="mini">退出登录</button>
   </section>
 </main>
+
+<script src="/static/frontend/shared/js/utils.js"></script>
+<script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/page-nav.js"></script>
 <script src="/platform-assets/js/platform.js"></script>
 </body>
 </html>

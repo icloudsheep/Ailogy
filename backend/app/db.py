@@ -39,10 +39,20 @@ def get_db():
 
 
 def init_db():
-    """建表（含 import 触发 models 注册）+ FTS5 虚拟表与同步触发器。幂等。"""
+    """建表（含 import 触发 models 注册）+ 轻量列迁移 + FTS5 虚拟表与同步触发器。幂等。"""
     from . import models  # noqa: F401 注册所有表到 Base.metadata
     Base.metadata.create_all(bind=engine)
+    _migrate()
     _init_fts()
+
+
+def _migrate():
+    """对既有库做最小列迁移（create_all 不会给已存在的表加新列）。"""
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(api_keys)"))}
+        if "secret" not in cols:
+            conn.execute(text("ALTER TABLE api_keys ADD COLUMN secret TEXT"))
 
 
 def _init_fts():

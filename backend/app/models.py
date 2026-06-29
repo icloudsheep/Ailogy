@@ -59,12 +59,18 @@ class KeyApplication(Base):
 
 
 class ApiKey(Base):
-    """API 密钥：只存 sha256 哈希 + 明文前缀，明文仅创建时返回一次。"""
+    """API 密钥。
+
+    安全取舍：本项目面向个人自托管，应需求把密钥明文也存库（secret 列），
+    以便页面随时复制——代价是能读到 .db 的人即可拿到所有明文密钥。
+    key_hash 仍保留用于鉴权快速查找；prefix 用于列表辨认。
+    """
     __tablename__ = "api_keys"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     prefix: Mapped[str] = mapped_column(String(16), nullable=False)        # 明文前 8 位，列表展示用
-    key_hash: Mapped[str] = mapped_column(String(64), nullable=False)      # sha256(完整密钥)
+    key_hash: Mapped[str] = mapped_column(String(64), nullable=False)      # sha256(完整密钥)，鉴权查找
+    secret: Mapped[str] = mapped_column(Text, nullable=True)               # 明文（个人自托管：随时可复制）
     label: Mapped[str] = mapped_column(String(64), default="")
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

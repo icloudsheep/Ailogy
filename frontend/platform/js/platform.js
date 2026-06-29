@@ -58,9 +58,9 @@ $("apply-form").onsubmit = async (e) => {
 $("newkey").onclick = async () => {
   try {
     const r = await api("/api/keys", { method: "POST", body: JSON.stringify({ label: "自助创建" }) });
-    alert("新密钥（仅此一次，请复制保存）：\n\n" + r.api_key);
     await loadKeys();
-  } catch (err) { alert(err.message); }
+    showToast("已新建密钥，可在列表随时复制", { title: "密钥" });
+  } catch (err) { showToast(err.message, { title: "出错", type: "err" }); }
 };
 
 $("logout").onclick = async () => { await api("/api/auth/logout", { method: "POST" }); location.reload(); };
@@ -77,14 +77,24 @@ async function loadApplications() {
 async function loadKeys() {
   const keys = await api("/api/keys");
   $("keys").innerHTML = keys.length ? keys.map((k) =>
-    `<div class="key ${k.revoked ? "revoked" : ""}">
-      <code>${k.prefix}…</code><span class="key-label">${k.label || ""}</span>
-      ${k.revoked ? '<span class="tag">已吊销</span>'
-        : `<button class="mini danger" data-id="${k.id}">吊销</button>`}
-    </div>`).join("") : "<div class='msg'>暂无密钥</div>";
-  $("keys").querySelectorAll("button[data-id]").forEach((b) => b.onclick = async () => {
-    if (!confirm("确认吊销该密钥？")) return;
-    await api(`/api/keys/${b.dataset.id}`, { method: "DELETE" }); await loadKeys();
+    `<div class="key">
+      <code title="${esc(k.secret || k.prefix)}">${esc(k.secret || (k.prefix + "…"))}</code>
+      <span class="key-label">${esc(k.label || "")}</span>
+      <div class="actions">
+        ${k.secret ? `<button class="mini" data-copy="${esc(k.secret)}">复制</button>` : ""}
+        <button class="mini danger" data-del="${k.id}">删除</button>
+      </div>
+    </div>`).join("") : "<div class='msg'>暂无密钥，点「+ 新建密钥」生成。</div>";
+  // 复制
+  $("keys").querySelectorAll("button[data-copy]").forEach((b) => b.onclick = async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); showToast("密钥已复制到剪贴板", { title: "密钥" }); }
+    catch { showToast("复制失败，请手动选中", { title: "密钥", type: "err" }); }
+  });
+  // 删除（不可逆）
+  $("keys").querySelectorAll("button[data-del]").forEach((b) => b.onclick = async () => {
+    if (!confirm("删除后不可恢复，确认删除该密钥？")) return;
+    await api(`/api/keys/${b.dataset.del}`, { method: "DELETE" });
+    await loadKeys(); showToast("密钥已删除", { title: "密钥" });
   });
 }
 
@@ -121,6 +131,7 @@ async function refresh() {
     $("auth").hidden = true; $("dash").hidden = false;
     $("who").textContent = `${me.email}${me.is_admin ? " 🛡" : ""}`;
     await Promise.all([loadApplications(), loadKeys(), loadAdmin(me.is_admin)]);
+    initPageNav("platform");  // 登录态确定后再渲染导航胶囊（仅管理员可见）
   } catch {
     $("auth").hidden = false; $("dash").hidden = true; $("who").textContent = "";
   }
@@ -128,3 +139,4 @@ async function refresh() {
 
 bindTabs();
 refresh();
+bindGlobalMenu();

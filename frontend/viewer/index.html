@@ -4,11 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ailogy · 工作日志瀑布流</title>
+<script>
+  // 尽早写入主题属性，避免首屏闪烁
+  try {
+    document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
+    document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="/static/vendor/katex/katex.min.css"
       onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';">
-<link rel="stylesheet" href="./css/viewer.css">
+<link rel="stylesheet" href="/static/frontend/shared/css/theme.css">
+<link rel="stylesheet" href="/static/frontend/shared/css/markdown.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/viewer.css">
 </head>
 <body>
+<div class="bg"></div>
 <header class="topbar">
   <h1>🗓️ Ailogy</h1>
   <nav class="views">
@@ -29,24 +39,25 @@
 <main id="feed" class="feed"></main>
 <div id="sentinel"></div>
 <div id="status" class="status"></div>
-
-<!-- 搜索结果浮层 -->
 <div id="search-results" class="search-results" hidden></div>
 
-<!-- 渲染库：本地 vendor 优先，失败回退 CDN -->
 <script src="/static/vendor/mermaid.min.js"
   onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';s.onload=function(){window.__mermaidReady&&window.__mermaidReady()};document.head.appendChild(s);"></script>
 <script src="/static/vendor/katex/katex.min.js"
   onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';s.onload=function(){window.__katexReady&&window.__katexReady()};document.head.appendChild(s);"></script>
 
-<!-- 复用的纯渲染模块 -->
+<!-- 纯渲染模块 -->
 <script src="/static/frontend/shared/js/utils.js"></script>
 <script src="/static/frontend/shared/js/markdown.js"></script>
 <script src="/static/frontend/shared/js/mermaid.js"></script>
 <script src="/static/frontend/shared/js/katex.js"></script>
+<!-- 共享 UI：主题/菜单/toast/模态 + 页面导航胶囊 -->
+<script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/page-nav.js"></script>
 <!-- viewer 数据层与主逻辑 -->
-<script src="./js/api.js"></script>
-<script src="./js/viewer.js"></script>
-<script src="./js/search.js"></script>
+<script src="/static/frontend/viewer/js/aliases.js"></script>
+<script src="/static/frontend/viewer/js/api.js"></script>
+<script src="/static/frontend/viewer/js/viewer.js"></script>
+<script src="/static/frontend/viewer/js/search.js"></script>
 </body>
 </html>
