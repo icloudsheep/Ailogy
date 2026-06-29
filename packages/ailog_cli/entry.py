@@ -100,7 +100,8 @@ def write_entry(root, summary, title, id_override, mode=None):
     with open(data_path, "w", encoding="utf-8") as f:
         json.dump(day, f, ensure_ascii=False, indent=2)
     render.render_html(day, html_path, root)
-    return cn, codename_id, html_path
+    # 同时返回刚写入的 entry（供 CLI 双模式上报后端，无需再拼一次）
+    return cn, codename_id, html_path, entry
 
 
 def edit_entry(root, date_str, seq, new_title, new_summary):

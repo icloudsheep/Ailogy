@@ -31,7 +31,7 @@ import json
 import os
 import sys
 
-from .config import config_path, load_config, resolve_root, save_config
+from .config import config_path, load_config, resolve_root, save_config, resolve_backend
 from .entry import write_entry, edit_entry, delete_entry
 from .render import save_alias, aliases_js_path, link_skill_assets, rerender_all_days
 
@@ -62,6 +62,10 @@ def main():
     parser.add_argument("--rerender", action="store_true",
                         help="把当前模板重新铺到 <root> 下所有日期的 index.html（模板升级后用），"
                              "并刷新 version.js / mermaid / katex 软链；不改 data.json")
+    parser.add_argument("--report", action="store_true",
+                        help="本次强制上报后端（双模式，覆盖配置默认）")
+    parser.add_argument("--offline", action="store_true",
+                        help="本次强制不上报（覆盖配置默认）")
     args = parser.parse_args()
 
     # --status：仅报告，不写日志。供调用方判断是否需要询问用户永久位置。
@@ -142,12 +146,22 @@ def main():
 
     # 解析本次保存目录：--root / --set-root > config > cache 兜底
     root, source = resolve_root(args.root or chosen_root)
-    cn, codename_id, html_path = write_entry(root, args.summary, args.title, args.id, args.mode)
+    cn, codename_id, html_path, entry = write_entry(root, args.summary, args.title, args.id, args.mode)
 
     print(f"✅ 日志已保存（{cn['emoji']} {codename_id}）-> {html_path}")
     if source == "cache":
         # 用了临时兜底目录，提示调用方下次仍可询问用户是否永久指定
         print(f"ℹ️ 当前为临时位置（未永久指定）：{root}", file=sys.stderr)
+
+    # 双模式：本地已保存，按需上报后端（失败不阻断，入队下次补发）
+    backend = resolve_backend(cli_report=(True if args.report else None), cli_offline=args.offline)
+    if backend["report"]:
+        from .reporter import report_entry, flush_queue
+        sent, remain = flush_queue()  # 先补发上次失败的
+        if sent:
+            print(f"📤 已补发 {sent} 条历史待发（剩 {remain}）")
+        if report_entry(backend, entry):
+            print(f"📤 已上报后端：{backend['url']}")
 
 
 if __name__ == "__main__":

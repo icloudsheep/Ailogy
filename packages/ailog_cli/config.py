@@ -53,3 +53,27 @@ def resolve_root(cli_root):
     if cfg.get("root"):
         return os.path.abspath(os.path.expanduser(cfg["root"])), "config"
     return cache_root(), "cache"
+
+
+# ── 后端上报配置（双模式）──
+# 分层优先级：环境变量 > config.json 的 backend 段 > 缺省（不上报）。
+# config.json 形如：{"root": "...", "backend": {"url": "...", "api_key": "...", "report": false}}
+def resolve_backend(cli_report=None, cli_offline=False):
+    """解析本次是否上报、后端地址与密钥。
+
+    cli_report=True 强制上报、cli_offline=True 强制不报（覆盖配置默认）。
+    返回 dict：{"report": bool, "url": str|None, "api_key": str|None}。
+    缺 url 或 key 时即使 report=True 也无法上报（由调用方提示）。
+    """
+    cfg = load_config().get("backend", {}) or {}
+    url = os.environ.get("AILOG_BACKEND_URL") or cfg.get("url")
+    api_key = os.environ.get("AILOG_API_KEY") or cfg.get("api_key")
+    # report 默认值：配置里的 report，再被 CLI 开关覆盖
+    report = bool(cfg.get("report", False))
+    if os.environ.get("AILOG_REPORT") is not None:
+        report = os.environ["AILOG_REPORT"].lower() in ("1", "true", "yes")
+    if cli_report is True:
+        report = True
+    if cli_offline:
+        report = False
+    return {"report": report, "url": (url or "").rstrip("/") or None, "api_key": api_key or None}
