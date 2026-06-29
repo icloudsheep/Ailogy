@@ -227,6 +227,20 @@ function clearDetailIfGone() {
   if (ST.active && !document.body.contains(ST.active)) { ST.active = null; closeDetail(); }
 }
 
+// 搜索结果点击：跳到该条所在月份，并只显示该天该会话（隐藏其余），然后选中该条。
+async function focusEntry(e) {
+  const month = (e.day || e.datetime || "").slice(0, 7);
+  if (month && month !== ST.month) await loadMonth(month);
+  // 只保留该天该会话：隐藏其余所有
+  ST.hiddenDays = new Set(ST.days.map((d) => d.day).filter((d) => d !== e.day));
+  ST.hiddenSessions = new Set(ST.sessions.map((s) => s.code).filter((c) => c !== e.session_code));
+  render();
+  // 选中该条节点（render 后存在）
+  const node = document.querySelector(`#stage .node[data-id="${e.id}"]`);
+  if (node) { selectNode(e, node); node.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  else showToast("已跳转，但未定位到该条节点", { title: "搜索" });
+}
+
 // ── 详情面板（右侧） ──
 function selectNode(e, node) {
   if (ST.active === node) { closeDetail(); return; }

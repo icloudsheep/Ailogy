@@ -7,7 +7,8 @@
 .month-pick b { font-variant-numeric: tabular-nums; }
 
 /* 胶囊两行 */
-.caps { position: sticky; top: var(--topbar-h, 60px); z-index: 15; padding: 10px clamp(16px,4vw,48px);
+/* 胶囊两行：紧贴页头下方（top 由 JS 按页头实际高度写入 --topbar-h） */
+.caps { position: sticky; top: var(--topbar-h, 56px); z-index: 15; padding: 10px clamp(16px,4vw,48px);
   background: var(--lg-bg); border-bottom: var(--lg-border);
   backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%);
   display: flex; flex-direction: column; gap: 8px; }
@@ -49,3 +50,26 @@ html[data-mode="dark"] .f { background: rgba(200,215,255,.07); }
 .auth-gate p { margin-bottom: 16px; font-size: 15px; }
 .gate-btn { display: inline-block; padding: 10px 22px; border-radius: 12px; color: #fff; font-weight: 600;
   text-decoration: none; background: linear-gradient(120deg,#6ea8fe,#9d7bff); box-shadow: 0 8px 20px -8px rgba(110,123,255,.7); }
+
+/* 页头内搜索框 */
+.search-box { flex: 1; max-width: 320px; }
+#search-input { width: 100%; padding: 7px 14px; border-radius: 999px; border: var(--lg-border);
+  background: var(--lg-bg); font: inherit; font-size: 13px; color: var(--txt); outline: none; box-shadow: var(--lg-inset); }
+#search-input:focus { border-color: #6ea8fe; box-shadow: 0 0 0 3px rgba(110,168,254,.2); }
+
+/* 搜索结果浮层（落在页头下方，避开 banner） */
+.search-results { position: fixed; top: calc(var(--topbar-h, 56px) + 10px); right: clamp(16px,4vw,48px); z-index: 40;
+  width: min(92vw, 460px); max-height: 70vh; overflow-y: auto; padding: 8px;
+  background: var(--lg-bg); border: var(--lg-border); border-radius: 14px;
+  backdrop-filter: blur(22px) saturate(185%); -webkit-backdrop-filter: blur(22px) saturate(185%);
+  box-shadow: 0 18px 44px -16px rgba(40,50,90,.5), var(--lg-inset); }
+.sr-count, .sr-empty { font-size: 11.5px; color: var(--dim); padding: 6px 10px; }
+.sr-empty { text-align: center; padding: 18px; }
+.sr-item { padding: 10px 12px; border-radius: 10px; cursor: pointer; margin-bottom: 4px; transition: background .15s; }
+.sr-item:hover { background: rgba(110,168,254,.12); }
+.sr-head { display: flex; align-items: center; gap: 8px; }
+.sr-title { font-size: 14px; font-weight: 650; color: var(--title-color); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-seq { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.sr-snip { font-size: 12.5px; color: var(--txt); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+mark { background: color-mix(in srgb, #ffd166 70%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+html[data-mode="dark"] mark { background: color-mix(in srgb, #ffd166 40%, transparent); }

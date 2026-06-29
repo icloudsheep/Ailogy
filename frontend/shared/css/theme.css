@@ -141,7 +141,8 @@
     100% { transform: translate3d(-30%, -20%, 0) rotate(0deg); }
   }
   /* toast 容器：右上角，多个 toast 依序向下堆叠；移除时下方自动上移补位（flex 重排） */
-  #toast-wrap { position: fixed; top: 18px; right: 18px; z-index: 90;
+  /* toast 容器：落在页头下方，避免遮挡 banner（top 用 --topbar-h + 间距） */
+  #toast-wrap { position: fixed; top: calc(var(--topbar-h, 56px) + 14px); right: 18px; z-index: 90;
     display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: none; }
   /* 单个 toast：液态玻璃圆角矩形——高亮描边 + 内层反光 + 顶部镜面高光 */
   .toast { position: relative; max-width: min(380px, calc(100vw - 36px)); padding: 13px 18px;
@@ -346,3 +347,10 @@
     font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
     color: var(--dim); opacity: .45; user-select: none; pointer-events: none;
     letter-spacing: .3px; }
+
+  /* ── 页面切换动画：进入淡入上浮，离开淡出（JS 给 body 加 .leaving）── */
+  @keyframes page-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  body { animation: page-enter .32s cubic-bezier(.2,.8,.2,1) both; }
+  body.leaving { opacity: 0; transform: translateY(-6px);
+    transition: opacity .2s ease, transform .2s ease; animation: none; }
+  @media (prefers-reduced-motion: reduce) { body, body.leaving { animation: none !important; transition: none !important; } }

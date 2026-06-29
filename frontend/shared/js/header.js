@@ -23,4 +23,27 @@ function renderHeader(current) {
         `<a class="hnav${n.key === current ? " on" : ""}" href="${n.href}" title="${n.label}">`
         + `<span class="emo">${n.emo}</span><span class="hnav-label">${n.label}</span></a>`).join("")
     + `</nav>`;
+  syncTopbar();
+  window.addEventListener("resize", syncTopbar);
+  bindNavTransition();
+}
+
+// 同源页面跳转加离场动画：拦截 .hnav / brand 点击，body 淡出后再跳
+function bindNavTransition() {
+  document.querySelectorAll("#app-header a[href]").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      const href = a.getAttribute("href");
+      if (!href || href.startsWith("http") || e.metaKey || e.ctrlKey) return;  // 外链/新标签不拦
+      e.preventDefault();
+      document.body.classList.add("leaving");
+      setTimeout(() => { location.href = href; }, 200);  // 与 .leaving 过渡同长
+    });
+  });
+}
+
+// 把页头实际高度写入 --topbar-h，供 .caps / .left 等 sticky 元素精确贴合（避免硬编码间隔）
+function syncTopbar() {
+  const el = document.getElementById("app-header");
+  if (!el) return;
+  document.documentElement.style.setProperty("--topbar-h", el.offsetHeight + "px");
 }

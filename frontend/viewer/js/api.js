@@ -25,4 +25,6 @@ const API = {
   months: () => _get("/api/months"),
   // 单条详情
   entry: (id) => _get(`/api/entries/${id}`),
+  // 全文搜索（全部日志，FTS）
+  search: ({ q, cursor = null, limit = 50 }) => _get("/api/search", { q, cursor, limit }),
 };
