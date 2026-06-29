@@ -10,5 +10,6 @@ document.querySelectorAll("#style-row .opt").forEach((b) =>
 document.querySelectorAll("#mode-row .opt").forEach((b) =>
   b.onclick = () => { setMode(b.dataset.mode); _sync(); });
 _sync();
+renderHeader("settings");
 bindGlobalMenu();
-initPageNav("settings");
+initDebugTag("front/settings");

@@ -1,0 +1,52 @@
+
+  /* 右侧：拆成多个液态玻璃框，纵向堆叠 */
+  .box { position: relative; overflow: hidden; background: var(--lg-bg); border: var(--lg-border); border-radius: 16px;
+    padding: 16px 20px; backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
+    box-shadow: 0 14px 38px -22px rgba(40,50,90,.5), var(--lg-inset); animation: fadein .84s cubic-bezier(.2,.8,.2,1) both; }
+  /* 液态玻璃顶部镜面高光 */
+  .box::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 42%;
+    background: linear-gradient(to bottom, rgba(255,255,255,.35), transparent); pointer-events: none; z-index: 0; }
+  .box > * { position: relative; z-index: 1; }
+  .box .bt { font-size: 11px; letter-spacing: .4px; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+  .empty { text-align: center; color: var(--dim); padding: 56px 20px; }
+
+  .d-head { display: flex; align-items: center; gap: 12px; }
+  .d-emo { font-size: 30px; filter: drop-shadow(0 3px 10px color-mix(in srgb, var(--c) 60%, transparent)); }
+  .d-who { font-size: 18px; font-weight: 680; }
+  .d-seq { margin-left: auto; font-size: 12px; color: var(--dim); border: 1px solid var(--line); padding: 3px 10px; border-radius: 999px; }
+
+  /* 标题：每条日志单独拎出的醒目大标题，置于详情面板首框顶部。
+     右侧留出空间避让绝对定位的操作条，避免长标题压到按钮下方。 */
+  .d-title { font-size: 21px; font-weight: 720; line-height: 1.35; letter-spacing: .3px;
+    color: var(--title-color); margin-bottom: 12px; padding-right: 170px; }
+  /* 详情操作条：右上角编辑/删除按钮 */
+  /* 详情操作条：绝对定位到首框右上角（脱离文档流，避免被随后整宽的 .d-title 盖住点击；
+     float 方案下浮动元素绘制层级在后续块级元素之下，是点击区"看得到点不到"的根因）。 */
+  .d-actions { position: absolute; top: 14px; right: 16px; z-index: 3; display: flex; gap: 8px; }
+  .d-act { font: inherit; font-size: 13px; padding: 8px 15px; border-radius: 10px; cursor: pointer;
+    color: var(--txt); background: var(--lg-bg); border: var(--lg-border);
+    box-shadow: var(--lg-inset); transition: transform .18s, box-shadow .3s, background .25s;
+    display: inline-flex; align-items: center; gap: 5px; line-height: 1; white-space: nowrap; }
+  .d-act:hover { transform: translateY(-1px); background: rgba(110,168,254,.14); }
+  .d-act.danger:hover { background: rgba(255,120,110,.16); color: #b4453a; }
+  /* 标题下方的会话头降级为副信息 */
+  .box .d-title + .d-head { padding-top: 10px; border-top: 1px solid var(--line); }
+  .box .d-title + .d-head .d-emo { font-size: 22px; }
+  .box .d-title + .d-head .d-who { font-size: 14px; color: var(--dim); font-weight: 600; }
+
+  /* 跨午夜接续标注（详情面板）：月色提示条 */
+  .carry { margin-top: 12px; padding: 9px 13px; font-size: 12.5px; line-height: 1.5;
+    color: var(--txt); background: linear-gradient(100deg, rgba(157,123,255,.16), rgba(110,168,254,.14));
+    border: 1px solid rgba(157,123,255,.4); border-radius: 10px; }
+  .carry b { color: var(--title-color); }
+
+  .sumbox .d-sum { overflow: visible; }
+
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .f { background: linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.28));
+    border: 1px solid rgba(255,255,255,.6); border-radius: 10px; padding: 9px 12px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
+  .f .k { font-size: 10.5px; color: var(--dim); letter-spacing: .3px; text-transform: uppercase; }
+  .f .v { font-size: 13px; margin-top: 3px; word-break: break-all; }
+  .f.wide { grid-column: 1 / -1; } .f .v.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+

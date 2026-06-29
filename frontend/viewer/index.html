@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ailogy · 工作日志瀑布流</title>
+<title>Ailogy · 工作日志</title>
 <script>
-  // 尽早写入主题属性，避免首屏闪烁
   try {
     document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
     document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
@@ -15,49 +14,46 @@
       onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';">
 <link rel="stylesheet" href="/static/frontend/shared/css/theme.css">
 <link rel="stylesheet" href="/static/frontend/shared/css/markdown.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/timeline.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/detail.css">
 <link rel="stylesheet" href="/static/frontend/viewer/css/viewer.css">
 </head>
 <body>
 <div class="bg"></div>
-<header class="topbar">
-  <h1>🗓️ Ailogy</h1>
-  <nav class="views">
-    <button class="view-tab on" data-view="all">全部</button>
-    <button class="view-tab" data-view="day">按日期</button>
-    <button class="view-tab" data-view="session">按会话</button>
-  </nav>
-  <div class="search-box">
-    <input id="search-input" type="text" placeholder="🔍 搜索标题、正文、项目…" spellcheck="false" />
-  </div>
+<svg class="link"><path id="linkpath"></path></svg>
+
+<header id="app-header" data-title="🗓️ Ailogy">
+  <button id="month-pick" class="month-pick">📅 <b id="month-label">…</b></button>
 </header>
 
-<div id="sess-crumb" class="crumb" hidden>
-  <button id="sess-back">← 返回会话列表</button>
-  <span>当前会话：<b id="sess-crumb-name"></b></span>
+<!-- 天 / 会话两级胶囊（各自切显隐） -->
+<div class="caps">
+  <div class="cap-row"><span class="cap-tag">天</span><div id="cap-days" class="cap-list"></div></div>
+  <div class="cap-row"><span class="cap-tag">会话</span><div id="cap-sessions" class="cap-list"></div></div>
 </div>
 
-<main id="feed" class="feed"></main>
-<div id="sentinel"></div>
-<div id="status" class="status"></div>
-<div id="search-results" class="search-results" hidden></div>
+<!-- 泳道 + 详情 -->
+<div class="wrap">
+  <div class="left" id="left"><div class="stage" id="stage"></div></div>
+  <div class="right" id="detail"><div class="box empty">👈 点击左侧节点查看该条日志</div></div>
+</div>
+
+<main id="feed"></main>
 
 <script src="/static/vendor/mermaid.min.js"
   onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';s.onload=function(){window.__mermaidReady&&window.__mermaidReady()};document.head.appendChild(s);"></script>
 <script src="/static/vendor/katex/katex.min.js"
   onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';s.onload=function(){window.__katexReady&&window.__katexReady()};document.head.appendChild(s);"></script>
 
-<!-- 纯渲染模块 -->
 <script src="/static/frontend/shared/js/utils.js"></script>
 <script src="/static/frontend/shared/js/markdown.js"></script>
 <script src="/static/frontend/shared/js/mermaid.js"></script>
 <script src="/static/frontend/shared/js/katex.js"></script>
-<!-- 共享 UI：主题/菜单/toast/模态 + 页面导航胶囊 -->
 <script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/header.js"></script>
 <script src="/static/frontend/shared/js/page-nav.js"></script>
-<!-- viewer 数据层与主逻辑 -->
 <script src="/static/frontend/viewer/js/aliases.js"></script>
 <script src="/static/frontend/viewer/js/api.js"></script>
 <script src="/static/frontend/viewer/js/viewer.js"></script>
-<script src="/static/frontend/viewer/js/search.js"></script>
 </body>
 </html>

@@ -131,12 +131,13 @@ async function refresh() {
     $("auth").hidden = true; $("dash").hidden = false;
     $("who").textContent = `${me.email}${me.is_admin ? " 🛡" : ""}`;
     await Promise.all([loadApplications(), loadKeys(), loadAdmin(me.is_admin)]);
-    initPageNav("platform");  // 登录态确定后再渲染导航胶囊（仅管理员可见）
+    initDebugTag("front/platform");  // 登录态确定后再显示调试标识（仅管理员）
   } catch {
     $("auth").hidden = false; $("dash").hidden = true; $("who").textContent = "";
   }
 }
 
+renderHeader("platform");
 bindTabs();
 refresh();
 bindGlobalMenu();

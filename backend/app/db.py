@@ -8,9 +8,8 @@ import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# 库文件路径：环境变量优先，否则仓库根 ailogy.db
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DB_PATH = os.environ.get("AILOGY_DB") or os.path.join(_REPO_ROOT, "ailogy.db")
+from .settings import DB_PATH
+
 DB_URL = f"sqlite:///{DB_PATH}"
 
 # check_same_thread=False：FastAPI 多线程下复用连接（配合每请求一个 Session）

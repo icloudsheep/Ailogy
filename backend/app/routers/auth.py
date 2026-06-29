@@ -56,8 +56,10 @@ def _issue_session(db: Session, user: models.User, resp: Response):
     sess = models.Session(id=sid, user_id=user.id,
                           expires_at=datetime.utcnow() + timedelta(days=SESSION_DAYS))
     db.add(sess); db.commit()
+    from ..settings import COOKIE_SECURE
     resp.set_cookie(SESSION_COOKIE, sid, httponly=True, samesite="lax",
-                    max_age=SESSION_DAYS * 86400)  # 本地 http：secure=False；上线 https 置 True
+                    secure=COOKIE_SECURE,  # 本地 http=False；上线 https 由 .env 置 True
+                    max_age=SESSION_DAYS * 86400)
 
 
 @router.post("/register")

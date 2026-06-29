@@ -1,0 +1,56 @@
+
+  .wrap { display: flex; gap: clamp(24px,4vw,64px); align-items: flex-start; padding: 26px clamp(18px,4vw,64px) 40px; }
+  /* 左侧泳道：独立滚动视口 */
+  .left { position: sticky; top: calc(var(--topbar-h) + 18px); flex: none;
+    max-height: calc(100vh - var(--topbar-h) - 38px); overflow-y: auto; overflow-x: hidden; }
+  .left::-webkit-scrollbar { width: 9px; }
+  .left::-webkit-scrollbar-thumb { background: rgba(60,72,110,.32); border-radius: 9px; }
+  .left::-webkit-scrollbar-thumb:hover { background: rgba(60,72,110,.5); }
+  .left::-webkit-scrollbar-track { background: transparent; }
+  .stage { position: relative; }
+  /* 右侧：随页面流动，无自身滚动条 */
+  .right { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* 左侧泳道 */
+  svg.rails { position: absolute; inset: 0; overflow: visible; pointer-events: none; z-index: 1; }
+  .rail { stroke-width: 6; fill: none; opacity: .5; stroke-linecap: round; stroke-dasharray: var(--len); stroke-dashoffset: var(--len);
+          animation: draw 2s cubic-bezier(.4,0,.2,1) forwards; }
+  /* 延伸线：贯穿整列、半宽(3)半透明，淡淡延展到页面高度 */
+  .rail-ext { stroke-width: 3; fill: none; opacity: .25; stroke-linecap: round; }
+  /* 时间线节点：作用域限定在 #stage 内，避免 .node 类名泄漏到 mermaid 图的同名节点 */
+  #stage .node { position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2;
+    animation: pop 1s cubic-bezier(.2,.9,.3,1.3) both; transition: left .9s cubic-bezier(.2,.8,.2,1); }
+  #stage .node .knob { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; position: relative;
+    background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--c) 78%, #fff), color-mix(in srgb, var(--c) 35%, #2a344a));
+    border: 2px solid color-mix(in srgb, var(--c) 80%, #fff); font-size: 14px; line-height: 1;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 16%, transparent), 0 4px 14px -2px var(--c);
+    transition: transform .44s, box-shadow .44s; }
+  #stage .node .num { position: absolute; right: -5px; bottom: -5px; min-width: 16px; height: 16px; padding: 0 3px;
+    border-radius: 9px; background: #28323e; border: 1.5px solid var(--c); color: #fff;
+    font-size: 10px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+  /* 跨午夜接续：节点左上角月亮角标 */
+  #stage .node .moon { position: absolute; left: -7px; top: -7px; font-size: 12px; line-height: 1;
+    filter: drop-shadow(0 1px 3px rgba(40,40,90,.5)); }
+  /* full 模式（按主题总结）：节点左上角小火箭角标 */
+  #stage .node .rocket { position: absolute; left: -7px; top: -7px; font-size: 12px; line-height: 1;
+    filter: drop-shadow(0 1px 3px rgba(40,40,90,.5)); }
+  /* 月亮与火箭同时存在时，火箭下移避让 */
+  #stage .node .moon + .rocket { top: 8px; }
+  #stage .node:hover .knob { transform: scale(1.16); }
+  #stage .node.active .knob { transform: scale(1.22); box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 30%, transparent), 0 0 20px var(--c); }
+  /* 节点悬停气泡：单例、挂在 body 上、fixed 定位，避免被左栏 overflow 裁剪。
+     由 JS 按节点位置摆放并填入标题，玻璃主题磨砂样式。 */
+  .node-tip { position: fixed; z-index: 95; padding: 7px 12px; border-radius: 10px; white-space: nowrap;
+    max-width: min(360px, 60vw); overflow: hidden; text-overflow: ellipsis;
+    font-size: 12.5px; font-weight: 600; line-height: 1.3; color: var(--txt);
+    background: var(--lg-bg); border: var(--lg-border);
+    backdrop-filter: blur(16px) saturate(185%); -webkit-backdrop-filter: blur(16px) saturate(185%);
+    box-shadow: 0 12px 30px -12px rgba(40,50,90,.55), var(--lg-inset);
+    opacity: 0; pointer-events: none; transform: translateY(4px);
+    transition: opacity .16s ease, transform .2s cubic-bezier(.2,.9,.3,1.2); }
+  .node-tip.on { opacity: 1; transform: translateY(0); }
+
+  /* 连接线：静态虚线、低透明、最底层 */
+  svg.link { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: -1; }
+  svg.link path { fill: none; stroke-width: 2; stroke-dasharray: 5 4; opacity: 0; transition: opacity .6s; }
+  svg.link path.on { opacity: .5; }

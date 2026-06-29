@@ -66,3 +66,21 @@ def search(
     """FTS 全文搜索，cursor 分页（仅搜自己的）。"""
     items, nxt = repo.search_entries(db, user.id, q, cursor, limit)
     return {"items": items, "next_cursor": nxt, "query": q}
+
+
+@router.get("/timeline")
+def timeline(
+    month: str = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """泳道时间线：返回某月（默认当月）该用户全部条目，前端按天→会话分组。"""
+    import datetime as _dt
+    m = month or _dt.date.today().strftime("%Y-%m")
+    return {"month": m, "items": repo.list_month(db, user.id, m)}
+
+
+@router.get("/months")
+def months(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    """该用户有数据的月份列表（倒序），供月份二级页选择。"""
+    return {"months": repo.list_months(db, user.id)}

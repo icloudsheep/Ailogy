@@ -59,5 +59,6 @@ function startFireworks(canvas) {
 }
 
 startFireworks(document.querySelector(".fireworks"));
+renderHeader("about");
 bindGlobalMenu();
-initPageNav("about");
+initDebugTag("front/about");

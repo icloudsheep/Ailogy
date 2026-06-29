@@ -202,3 +202,26 @@ def _paginate(rows, limit, cursor_of, encode):
     nxt = encode(cursor_of(items[-1])) if (has_more and items) else None
     return items, nxt
 
+
+
+def list_month(db, user_id, month):
+    """取某月（YYYY-MM）该用户的全部条目，按时间升序（供前端泳道时间线构建）。
+
+    一个月的量级（个人日志）一次性返回即可，前端按天→会话分组渲染泳道。
+    """
+    from sqlalchemy import text
+    rows = db.execute(text(
+        f"SELECT {_COLS} FROM entries WHERE user_id = :uid AND day LIKE :m "
+        "ORDER BY datetime ASC, id ASC"
+    ), {"uid": user_id, "m": f"{month}-%"}).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def list_months(db, user_id):
+    """该用户有数据的月份列表（YYYY-MM，倒序），供月份二级页选择。"""
+    from sqlalchemy import text
+    rows = db.execute(text(
+        "SELECT DISTINCT substr(day,1,7) AS m FROM entries WHERE user_id = :uid "
+        "ORDER BY m DESC"
+    ), {"uid": user_id}).fetchall()
+    return [r[0] for r in rows]

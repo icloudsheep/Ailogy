@@ -25,10 +25,11 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Ailogy", version="0.1.0", lifespan=lifespan)
 
-# CORS：本地阶段白名单 localhost / 127.0.0.1，带 cookie 不能用 *
+# CORS：来源白名单来自 .env（带 cookie 不能用 *）
+from .settings import CORS_ORIGINS, VERSION, REPO  # noqa: E402
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,7 +94,7 @@ def about_index():
 @app.get("/api/version")
 def version():
     """版本信息（供关于页与更新检查）。"""
-    return {"version": "0.1.0", "repo": "https://github.com/icloudsheep/Ailogy"}
+    return {"version": VERSION, "repo": REPO}
 
 
 # viewer 的 css/js 相对路径（./css ./js）需能解析：把 viewer 目录挂在根静态

@@ -1,100 +1,51 @@
-/* viewer 专属布局：吸顶头部、视图切换、瀑布流卡片、会话列表、搜索浮层、详情弹层。
-   主题变量 / 背景 / toast / 菜单 / 模态 / markdown 来自 shared 的 theme.css + markdown.css。 */
+/* viewer 专属：月份按钮、天/会话胶囊两行、泳道天分隔、详情面板。
+   主题/背景/toast/菜单/模态来自 theme.css；节点/泳道线来自 timeline.css；markdown 来自 markdown.css。 */
 
-/* 吸顶头部 */
-.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 18px;
-  padding: 14px clamp(16px,4vw,48px); background: var(--lg-bg); border-bottom: var(--lg-border);
-  backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
-  box-shadow: 0 8px 24px -16px rgba(40,50,90,.4), var(--lg-inset); flex-wrap: wrap; }
-.topbar h1 { font-size: 20px; font-weight: 700; }
-.views { display: flex; gap: 6px; }
-.view-tab { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; cursor: pointer;
-  border: var(--lg-border); background: var(--lg-bg); color: var(--dim); transition: all .2s; }
-.view-tab.on { background: linear-gradient(120deg,#6ea8fe,#9d7bff); color: #fff; border-color: transparent; }
-.search-box { margin-left: auto; flex: 1; min-width: 200px; max-width: 360px; }
-#search-input { width: 100%; padding: 8px 14px; border-radius: 999px; border: var(--lg-border);
-  background: var(--lg-bg); font: inherit; font-size: 13px; color: var(--txt); outline: none; }
-#search-input:focus { border-color: #6ea8fe; box-shadow: 0 0 0 3px rgba(110,168,254,.2); }
+/* 月份选择按钮（在 header 槽内） */
+.month-pick { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; cursor: pointer;
+  border: var(--lg-border); background: var(--lg-bg); color: var(--txt); box-shadow: var(--lg-inset); }
+.month-pick b { font-variant-numeric: tabular-nums; }
 
-/* 会话面包屑（仅钻进某会话后显示） */
-.crumb { display: flex; align-items: center; gap: 12px; padding: 10px clamp(16px,4vw,48px);
-  font-size: 13px; color: var(--dim); }
-#sess-back { font: inherit; font-size: 12px; padding: 4px 12px; border-radius: 8px; cursor: pointer;
-  border: var(--lg-border); background: var(--lg-bg); color: var(--txt); }
+/* 胶囊两行 */
+.caps { position: sticky; top: var(--topbar-h, 60px); z-index: 15; padding: 10px clamp(16px,4vw,48px);
+  background: var(--lg-bg); border-bottom: var(--lg-border);
+  backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%);
+  display: flex; flex-direction: column; gap: 8px; }
+.cap-row { display: flex; align-items: center; gap: 10px; }
+.cap-tag { flex: none; font-size: 11px; color: var(--dim); width: 30px; }
+.cap-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.cap { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+  font-size: 12.5px; color: var(--txt); cursor: pointer; user-select: none;
+  background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
+  transition: transform .25s, box-shadow .3s, opacity .25s, filter .25s; }
+.cap:hover { transform: translateY(-2px); }
+.cap.off { opacity: .5; filter: grayscale(.85); box-shadow: inset 0 2px 6px rgba(40,50,90,.25); }
+.cap .emo { font-size: 14px; }
+/* 会话胶囊：左侧实心点用会话色 + 选中态外发光 */
+.sess-cap { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 55%, transparent), var(--lg-inset); }
+.sess-cap.off { box-shadow: inset 0 2px 6px rgba(40,50,90,.25); }
+.cap-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.cap.off .cap-dot { box-shadow: none; }
+/* 天胶囊：色块用渐变（当日会话色） */
+.cap-swatch { width: 14px; height: 14px; border-radius: 4px; }
 
-/* 瀑布流：居中单列，卡片纵向堆叠 */
-.feed { max-width: 820px; margin: 0 auto; padding: 24px clamp(16px,4vw,48px) 70px;
-  display: flex; flex-direction: column; gap: 16px; }
-.day-sep { position: sticky; top: 64px; z-index: 5; align-self: flex-start;
-  font-size: 13px; font-weight: 650; color: var(--title-color); padding: 4px 14px; border-radius: 999px;
-  background: var(--lg-bg); border: var(--lg-border);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+/* 泳道天分隔头（stage 内绝对定位） */
+.day-row { position: absolute; left: 0; height: 64px; display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 650; color: var(--title-color); white-space: nowrap; padding-left: 4px; }
+.day-chip { width: 16px; height: 16px; border-radius: 5px; display: inline-block; }
 
-/* 卡片 */
-.card { position: relative; background: var(--lg-bg); border: var(--lg-border); border-radius: 16px;
-  border-left: 4px solid var(--c); padding: 16px 20px;
-  backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
-  box-shadow: 0 14px 38px -22px rgba(40,50,90,.5), var(--lg-inset); }
-.c-head { display: flex; align-items: center; gap: 10px; }
-.c-emo { font-size: 22px; }
-.c-title { font-size: 17px; font-weight: 700; color: var(--title-color); flex: 1;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.c-seq { font-size: 11px; color: var(--dim); border: 1px solid var(--line); padding: 2px 9px; border-radius: 999px; }
-.c-sub { font-size: 12px; color: var(--dim); margin: 4px 0 10px; }
-.c-carry { font-size: 12px; color: var(--txt); background: rgba(157,123,255,.14);
-  border: 1px solid rgba(157,123,255,.3); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; }
-.c-body { font-size: 14px; }
-.c-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px;
-  padding-top: 10px; border-top: 1px solid var(--line); }
-.c-meta { font-size: 11.5px; color: var(--dim); }
+.stage .empty, .right .empty { color: var(--dim); padding: 40px 16px; text-align: center; }
 
-/* 会话列表卡片（按会话视图第一层） */
-.sess-card { display: flex; align-items: center; gap: 12px; cursor: pointer;
-  background: var(--lg-bg); border: var(--lg-border); border-left: 4px solid var(--c);
-  border-radius: 14px; padding: 14px 18px; transition: transform .15s, box-shadow .2s;
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: var(--lg-inset); }
-.sess-card:hover { transform: translateY(-2px); box-shadow: 0 12px 30px -16px rgba(40,50,90,.5); }
-.sess-name { font-size: 16px; font-weight: 650; color: var(--title-color); }
-.sess-cnt { font-size: 12px; color: var(--dim); border: 1px solid var(--line); padding: 2px 9px; border-radius: 999px; }
+/* 详情指标卡（复用 detail.css 的 box/d-title 等；这里补 metrics/f） */
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.f { background: rgba(255,255,255,.4); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; }
+html[data-mode="dark"] .f { background: rgba(200,215,255,.07); }
+.f .k { font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .3px; }
+.f .v { font-size: 13px; margin-top: 3px; word-break: break-all; }
+.bt { font-size: 11px; letter-spacing: .4px; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
 
-.status { text-align: center; color: var(--dim); font-size: 12.5px; padding: 10px 0 40px; }
-#sentinel { height: 1px; }
-
-/* 未登录拦截提示 */
+/* 未登录拦截 */
 .auth-gate { text-align: center; padding: 60px 20px; color: var(--dim); }
 .auth-gate p { margin-bottom: 16px; font-size: 15px; }
-.gate-btn { display: inline-block; padding: 10px 22px; border-radius: 12px; color: #fff;
-  font-weight: 600; text-decoration: none;
-  background: linear-gradient(120deg,#6ea8fe,#9d7bff); box-shadow: 0 8px 20px -8px rgba(110,123,255,.7); }
-
-/* 搜索结果浮层 */
-.search-results { position: fixed; top: 64px; right: clamp(16px,4vw,48px); z-index: 40;
-  width: min(92vw, 440px); max-height: 70vh; overflow-y: auto; padding: 8px;
-  background: var(--lg-bg); border: var(--lg-border); border-radius: 14px;
-  backdrop-filter: blur(22px) saturate(185%); -webkit-backdrop-filter: blur(22px) saturate(185%);
-  box-shadow: 0 18px 44px -16px rgba(40,50,90,.5), var(--lg-inset); }
-.sr-count, .sr-empty { font-size: 11.5px; color: var(--dim); padding: 6px 10px; }
-.sr-empty { text-align: center; padding: 18px; }
-.sr-item { padding: 10px 12px; border-radius: 10px; cursor: pointer; border-left: 3px solid var(--c);
-  margin-bottom: 4px; transition: background .15s; }
-.sr-item:hover { background: rgba(110,168,254,.12); }
-.sr-head { display: flex; align-items: center; gap: 8px; }
-.sr-title { font-size: 14px; font-weight: 650; color: var(--title-color); flex: 1;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sr-seq { font-size: 11px; color: var(--dim); }
-.sr-meta { font-size: 11.5px; color: var(--dim); margin: 3px 0; }
-.sr-snip { font-size: 12.5px; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-mark { background: color-mix(in srgb, #ffd166 70%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
-html[data-mode="dark"] mark { background: color-mix(in srgb, #ffd166 40%, transparent); }
-
-/* 详情弹层 */
-.detail-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
-  background: rgba(20,28,60,.2); backdrop-filter: blur(6px); padding: 24px; }
-.detail-modal { position: relative; width: min(760px, 100%); max-height: 88vh; overflow-y: auto;
-  background: var(--lg-bg); border: var(--lg-border); border-left: 5px solid var(--c); border-radius: 18px;
-  padding: 24px 28px; backdrop-filter: blur(28px) saturate(190%); -webkit-backdrop-filter: blur(28px) saturate(190%);
-  box-shadow: 0 30px 70px -24px rgba(20,28,60,.6), var(--lg-inset); }
-.detail-close { position: absolute; top: 16px; right: 16px; border: none; background: rgba(110,168,254,.14);
-  width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; color: var(--txt); }
-.d-title { font-size: 22px; font-weight: 720; color: var(--title-color); padding-right: 36px; }
-.d-sub { font-size: 12.5px; color: var(--dim); margin: 6px 0 16px; }
+.gate-btn { display: inline-block; padding: 10px 22px; border-radius: 12px; color: #fff; font-weight: 600;
+  text-decoration: none; background: linear-gradient(120deg,#6ea8fe,#9d7bff); box-shadow: 0 8px 20px -8px rgba(110,123,255,.7); }

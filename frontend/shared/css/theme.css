@@ -321,3 +321,28 @@
   .pagecap.on { box-shadow: 0 0 0 1.5px color-mix(in srgb, #6ea8fe 60%, transparent),
     0 6px 16px -7px #6ea8fe, var(--lg-inset); }
   .pagecap .emo { font-size: 14px; }
+
+  /* ── 公用页头（banner，所有页面一致）── */
+  .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 16px;
+    padding: 14px clamp(16px,4vw,48px); background: var(--lg-bg); border-bottom: var(--lg-border);
+    backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
+    box-shadow: 0 8px 24px -16px rgba(40,50,90,.4), var(--lg-inset); flex-wrap: wrap; }
+  .topbar .brand { font-size: 20px; font-weight: 700; color: var(--title-color); text-decoration: none;
+    white-space: nowrap; }
+  .header-slot { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .header-nav { display: flex; gap: 6px; margin-left: auto; }
+  .hnav { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px;
+    font-size: 12.5px; color: var(--dim); text-decoration: none; cursor: pointer;
+    border: 1px solid transparent; transition: background .2s, color .2s, border-color .2s; }
+  .hnav:hover { background: rgba(110,168,254,.14); color: var(--txt); }
+  .hnav.on { background: var(--lg-bg); border: var(--lg-border); color: var(--txt);
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, #6ea8fe 50%, transparent), var(--lg-inset); }
+  .hnav .emo { font-size: 14px; }
+  /* 窄屏隐藏导航文字、只留图标 */
+  @media (max-width: 640px) { .hnav-label { display: none; } }
+
+  /* ── 左下角调试标识（仅管理员）：半透明小字，标注当前页面所属部分 ── */
+  .debug-tag { position: fixed; left: 12px; bottom: 10px; z-index: 60;
+    font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--dim); opacity: .45; user-select: none; pointer-events: none;
+    letter-spacing: .3px; }
