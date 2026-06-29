@@ -1,0 +1,26 @@
+<svg width="1200" height="240" viewBox="0 0 1200 240" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="密钥流程：注册登录 → 申请 → 管理员审批 → 发放密钥 → CLI 上报">
+  <defs>
+    <linearGradient id="kbg" x1="0" y1="0" x2="1200" y2="240" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f6f8ff"/><stop offset="1" stop-color="#eaeffb"/></linearGradient>
+    <linearGradient id="s1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8ec5ff"/><stop offset="1" stop-color="#6ea8fe"/></linearGradient>
+    <linearGradient id="s2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9ee6c4"/><stop offset="1" stop-color="#46d1c4"/></linearGradient>
+    <linearGradient id="s3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd17a"/><stop offset="1" stop-color="#ffb454"/></linearGradient>
+    <linearGradient id="s4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c5a3ff"/><stop offset="1" stop-color="#9d7bff"/></linearGradient>
+    <linearGradient id="s5" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f178b6"/><stop offset="1" stop-color="#e0559a"/></linearGradient>
+    <filter id="ks" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#2a3458" flood-opacity=".22"/></filter>
+  </defs>
+  <rect width="1200" height="240" fill="url(#kbg)"/>
+  <g stroke="#9aa7c8" stroke-width="3" stroke-linecap="round" fill="none" opacity=".7">
+    <path d="M228 120 H262"/><path d="M250 110 l14 10 l-14 10"/>
+    <path d="M450 120 H484"/><path d="M472 110 l14 10 l-14 10"/>
+    <path d="M672 120 H706"/><path d="M694 110 l14 10 l-14 10"/>
+    <path d="M894 120 H928"/><path d="M916 110 l14 10 l-14 10"/>
+  </g>
+  <g filter="url(#ks)" font-family="-apple-system,'PingFang SC',sans-serif">
+    <g transform="translate(40 84)"><rect width="188" height="72" rx="16" fill="url(#s1)"/><text x="94" y="34" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">注册 / 登录</text><text x="94" y="56" text-anchor="middle" font-size="12" fill="#eef4ff">邮箱 + 密码</text></g>
+    <g transform="translate(262 84)"><rect width="188" height="72" rx="16" fill="url(#s2)"/><text x="94" y="34" text-anchor="middle" font-size="15" font-weight="700" fill="#0f4a38">提交申请</text><text x="94" y="56" text-anchor="middle" font-size="12" fill="#0f4a38">填写理由</text></g>
+    <g transform="translate(484 84)"><rect width="188" height="72" rx="16" fill="url(#s3)"/><text x="94" y="34" text-anchor="middle" font-size="15" font-weight="700" fill="#6b4708">管理员审批</text><text x="94" y="56" text-anchor="middle" font-size="12" fill="#6b4708">批准 / 拒绝</text></g>
+    <g transform="translate(706 84)"><rect width="188" height="72" rx="16" fill="url(#s4)"/><text x="94" y="34" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">发放密钥</text><text x="94" y="56" text-anchor="middle" font-size="12" fill="#f1ebff">ak_… 仅一次</text></g>
+    <g transform="translate(928 84)"><rect width="188" height="72" rx="16" fill="url(#s5)"/><text x="94" y="34" text-anchor="middle" font-size="15" font-weight="700" fill="#fff">CLI 上报</text><text x="94" y="56" text-anchor="middle" font-size="12" fill="#ffe6f2">--report</text></g>
+  </g>
+  <text x="600" y="36" text-anchor="middle" font-family="-apple-system,'PingFang SC',sans-serif" font-size="16" font-weight="700" fill="#2a3149">密钥申请 → 审批 → 上报 流程</text>
+</svg>

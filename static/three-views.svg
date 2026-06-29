@@ -1,0 +1,60 @@
+<svg width="1200" height="300" viewBox="0 0 1200 300" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="三种视图：全部、按日期、按会话">
+  <defs>
+    <linearGradient id="vbg" x1="0" y1="0" x2="1200" y2="300" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f6f8ff"/><stop offset="1" stop-color="#eaeffb"/></linearGradient>
+    <filter id="vs" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#2a3458" flood-opacity=".18"/></filter>
+  </defs>
+  <rect width="1200" height="300" fill="url(#vbg)"/>
+
+  <!-- 全部 -->
+  <g transform="translate(60 20)">
+    <text x="170" y="20" text-anchor="middle" font-family="-apple-system,'PingFang SC',sans-serif" font-size="15" font-weight="700" fill="#2a3149">全部（忽略日期）</text>
+    <text x="170" y="40" text-anchor="middle" font-family="-apple-system,'PingFang SC',sans-serif" font-size="12" fill="#5a6884">一条不漏的时间倒序流</text>
+    <g filter="url(#vs)">
+      <rect x="20" y="56" width="300" height="34" rx="9" fill="#fff" stroke="#8ec5ff" stroke-width="2"/>
+      <rect x="20" y="98" width="300" height="34" rx="9" fill="#fff" stroke="#9ee6c4" stroke-width="2"/>
+      <rect x="20" y="140" width="300" height="34" rx="9" fill="#fff" stroke="#ffd17a" stroke-width="2"/>
+      <rect x="20" y="182" width="300" height="34" rx="9" fill="#fff" stroke="#f178b6" stroke-width="2"/>
+    </g>
+    <g font-family="ui-monospace,Menlo,monospace" font-size="11" fill="#5a6884">
+      <text x="34" y="78">🦊 重构专项 · #5</text><text x="34" y="120">🐺 修复渲染 · #4</text>
+      <text x="34" y="162">🦊 重构专项 · #3</text><text x="34" y="204">🦋 文档更新 · #2</text>
+    </g>
+  </g>
+
+  <!-- 按日期 -->
+  <g transform="translate(440 20)">
+    <text x="170" y="20" text-anchor="middle" font-family="-apple-system,'PingFang SC',sans-serif" font-size="15" font-weight="700" fill="#2a3149">按日期</text>
+    <text x="170" y="40" text-anchor="middle" font-family="-apple-system,'PingFang SC',sans-serif" font-size="12" fill="#5a6884">跨天插入日期分隔头</text>
+    <g filter="url(#vs)">
+      <rect x="60" y="56" width="220" height="26" rx="13" fill="#eef1fb" stroke="#c5a3ff" stroke-width="2"/>
+      <rect x="20" y="90" width="300" height="32" rx="9" fill="#fff" stroke="#8ec5ff" stroke-width="2"/>
+      <rect x="20" y="128" width="300" height="32" rx="9" fill="#fff" stroke="#9ee6c4" stroke-width="2"/>
+      <rect x="60" y="168" width="220" height="26" rx="13" fill="#eef1fb" stroke="#c5a3ff" stroke-width="2"/>
+      <rect x="20" y="202" width="300" height="32" rx="9" fill="#fff" stroke="#ffd17a" stroke-width="2"/>
+    </g>
+    <g font-family="ui-monospace,Menlo,monospace" font-size="11" fill="#5a6884">
+      <text x="170" y="73" text-anchor="middle" fill="#7b5be0">🗓 2026-06-25</text>
+      <text x="34" y="110">🦊 补齐速查表</text><text x="34" y="148">🐝 逐行步骤</text>
+      <text x="170" y="185" text-anchor="middle" fill="#7b5be0">🗓 2026-06-24</text>
+      <text x="34" y="222">🦋 LaTeX 增强</text>
+    </g>
+  </g>
+
+  <!-- 按会话 -->
+  <g transform="translate(820 20)">
+    <text x="170" y="20" text-anchor="middle" font-family="-apple-system,'PingFang SC',sans-serif" font-size="15" font-weight="700" fill="#2a3149">按会话</text>
+    <text x="170" y="40" text-anchor="middle" font-family="-apple-system,'PingFang SC',sans-serif" font-size="12" fill="#5a6884">先列会话，钻取看条目</text>
+    <g filter="url(#vs)">
+      <rect x="20" y="56" width="300" height="40" rx="11" fill="#fff" stroke="#8ec5ff" stroke-width="3"/>
+      <rect x="20" y="104" width="300" height="40" rx="11" fill="#fff" stroke="#9ee6c4" stroke-width="3"/>
+      <rect x="20" y="152" width="300" height="40" rx="11" fill="#fff" stroke="#ffd17a" stroke-width="3"/>
+      <rect x="20" y="200" width="300" height="40" rx="11" fill="#fff" stroke="#f178b6" stroke-width="3"/>
+    </g>
+    <g font-family="ui-monospace,Menlo,monospace" font-size="11.5" fill="#2a3149">
+      <text x="36" y="81">🦊 Fox-3f2a · 16 条 ›</text>
+      <text x="36" y="129">🐺 Wolf-aa11 · 13 条 ›</text>
+      <text x="36" y="177">🦋 Butterfly-8721 · 9 条 ›</text>
+      <text x="36" y="225">🐝 Bee-2700 · 5 条 ›</text>
+    </g>
+  </g>
+</svg>
