@@ -43,8 +43,11 @@ def health():
 
 
 # 路由挂载
-from .routers import entries  # noqa: E402
+from .routers import entries, auth, applications, keys  # noqa: E402
 app.include_router(entries.router)
+app.include_router(auth.router)
+app.include_router(applications.router)
+app.include_router(keys.router)
 
 
 # 用户瀑布流页面（M1：暂直接服务 viewer 壳；M4 起按 /u/{handle} 注入用户标识）
@@ -57,10 +60,19 @@ def viewer_index():
     return FileResponse(os.path.join(_FRONTEND, "viewer", "index.html"))
 
 
+@app.get("/platform")
+def platform_index():
+    """密钥平台页面（注册/登录/申请/密钥管理/审批）。"""
+    return FileResponse(os.path.join(_FRONTEND, "platform", "index.html"))
+
+
 # viewer 的 css/js 相对路径（./css ./js）需能解析：把 viewer 目录挂在根静态
 if os.path.isdir(os.path.join(_FRONTEND, "viewer")):
     app.mount("/css", StaticFiles(directory=os.path.join(_FRONTEND, "viewer", "css")), name="viewer-css")
     app.mount("/js", StaticFiles(directory=os.path.join(_FRONTEND, "viewer", "js")), name="viewer-js")
+# 平台静态资源
+if os.path.isdir(os.path.join(_FRONTEND, "platform")):
+    app.mount("/platform-assets", StaticFiles(directory=os.path.join(_FRONTEND, "platform")), name="platform-assets")
 
 
 # 静态资产：vendor 下的 mermaid/katex/version 等（前端页面引用）
