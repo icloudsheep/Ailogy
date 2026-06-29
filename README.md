@@ -60,19 +60,23 @@ python3 -m venv .venv
 .venv/bin/pip install -e .          # 安装后端 + CLI 及依赖
 ```
 
-### 2. 启动后端（含网页前端）
+### 2. 启动
 
 ```bash
-AILOGY_DB=./ailogy.db PYTHONPATH=packages:backend \
-  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+./run.sh            # 一键启动（首次会自动从 .env.example 生成 .env）
+./run.sh --reload   # 开发模式：改代码自动重启
 ```
 
-- `AILOGY_DB`：SQLite 库文件路径（不存在会自动建表）。
-- 启动后访问下列页面。
+> `run.sh` 内部设置 `PYTHONPATH`（解释器启动前必须就位，无法写进 .env），其余配置
+> （DB 路径 / HOST / PORT / CORS / cookie / 版本）都从仓库根 `.env` 读取。
+> 想改端口、库路径等，编辑 `.env`（参照 `.env.example`）即可，不必碰命令行。
+
+启动后访问下列页面：
 
 | 地址 | 用途 |
 | --- | --- |
-| `http://127.0.0.1:8000/platform` | 密钥平台：注册 / 登录 / 申请 / 密钥管理 / 审批 |
+| `http://127.0.0.1:8000/account` | 账户：注册 / 登录 / 退出 / 个人信息 |
+| `http://127.0.0.1:8000/platform` | 密钥：密钥管理 / 申请 / 审批（需登录）|
 | `http://127.0.0.1:8000/` | 瀑布流（需先登录） |
 | `http://127.0.0.1:8000/?share=<token>` | 公开分享链接（匿名只读） |
 
