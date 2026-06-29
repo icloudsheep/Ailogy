@@ -1,0 +1,50 @@
+"""Ailogy FastAPI 应用入口。
+
+M0 阶段只提供 /health 与建库；后续里程碑在 routers/ 下挂载各路由。
+静态资产（vendor 下的 mermaid/katex/version + 前端页面）由静态路由提供。
+"""
+import os
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from .db import init_db
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_VENDOR = os.path.join(_REPO_ROOT, "vendor")
+_FRONTEND = os.path.join(_REPO_ROOT, "frontend")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()  # 启动时建表 + FTS（幂等）
+    yield
+
+
+app = FastAPI(title="Ailogy", version="0.1.0", lifespan=lifespan)
+
+# CORS：本地阶段白名单 localhost / 127.0.0.1，带 cookie 不能用 *
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+def health():
+    """健康检查：探活 + 确认 DB 路径。"""
+    from .db import DB_PATH
+    return {"status": "ok", "db": DB_PATH}
+
+
+# 静态资产：vendor 下的 mermaid/katex/version 等（前端页面引用）
+if os.path.isdir(_VENDOR):
+    app.mount("/static/vendor", StaticFiles(directory=_VENDOR), name="vendor")
+# 前端页面（viewer / platform / shared）——M1 起逐步填充
+if os.path.isdir(_FRONTEND):
+    app.mount("/static/frontend", StaticFiles(directory=_FRONTEND), name="frontend")

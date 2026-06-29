@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<!-- ⚠️ 本文件由 scripts/build/build_template.py 从 scripts/src/ 各部件拼装而成，请勿手改。
+     改样式/逻辑请改 src/css/*.css、src/js/*.js 或 src/shell_*.html，再重跑 build_template.py。 -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 工作日志 · 时间线</title>
+<script>
+  // 尽早写入主题属性，避免首屏闪烁（FOUC）
+  try {
+    document.documentElement.setAttribute("data-style", localStorage.getItem("ai-log:style") || "glass");
+    document.documentElement.setAttribute("data-mode", localStorage.getItem("ai-log:mode") || "light");
+  } catch (e) {
+    document.documentElement.setAttribute("data-style", "glass");
+    document.documentElement.setAttribute("data-mode", "light");
+  }
+</script>
+<style>
+  :root {
+    --panel: rgba(255,255,255,.5); --line: rgba(30,40,70,.16);
+    --txt: #1c2438; --dim: #5a6884;
+    --glass: rgba(255,255,255,.52); --topbar-h: 150px;
+    /* 液态玻璃统一配方：双层半透明渐变底 + 高亮描边 + 内反光，可复用 */
+    --lg-bg: linear-gradient(135deg, rgba(255,255,255,.6), rgba(255,255,255,.3));
+    --lg-border: 1px solid rgba(255,255,255,.7);
+    --lg-inset: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -1px 3px rgba(120,140,200,.16);
+    --blur: 14px;                         /* 玻璃主题模糊量；非玻璃主题置 0 */
+    --title-color: #131a2c;
+    --font: -apple-system, "SF Pro", "PingFang SC", Segoe UI, sans-serif;
+    --bg-anim: huewash 40s ease-in-out infinite;  /* 仅玻璃流动；其余 none */
+  }
+
+  /* ── 明暗维度（data-mode） ───────────────────────────── */
+  html[data-mode="dark"] {
+    --line: rgba(180,195,235,.16); --txt: #e7ecf8; --dim: #9aa7c8;
+    --title-color: #f5f7fc;
+    --lg-bg: linear-gradient(135deg, rgba(26,32,52,.74), rgba(16,20,36,.6));
+    --lg-border: 1px solid rgba(150,170,225,.2);
+    --lg-inset: inset 0 1px 0 rgba(180,200,255,.14), inset 0 -1px 3px rgba(0,0,0,.45); }
+  /* 暗色：内层字段框 / mermaid 容器底色改为半透明浅色叠加，适配任意暗色主题（玻璃/拟态/报纸），
+     避免暗底上残留亮白块 */
+  html[data-mode="dark"] .f {
+    background: rgba(200,215,255,.07);
+    border-color: rgba(160,180,230,.16); box-shadow: inset 0 1px 0 rgba(200,215,255,.1); }
+  html[data-mode="dark"] .md .mermaid {
+    background: rgba(200,215,255,.06);
+    border-color: rgba(160,180,230,.16); box-shadow: inset 0 1px 0 rgba(200,215,255,.08); }
+  /* 暗色 toast：近不透明深底，避免透出明亮背景导致整体偏亮；并降饱和 */
+  html[data-mode="dark"] .toast {
+    background: linear-gradient(135deg, rgba(22,27,44,.96), rgba(14,18,32,.94));
+    backdrop-filter: blur(18px) saturate(120%); -webkit-backdrop-filter: blur(18px) saturate(120%); }
+  html[data-mode="dark"] .toast::before { display: none; }
+  html[data-mode="dark"][data-style="glass"] .box::before,
+  html[data-mode="dark"][data-style="glass"] .toast::before,
+  html[data-mode="dark"][data-style="glass"] .modal::before {
+    background: linear-gradient(to bottom, rgba(200,215,255,.06), transparent); }
+  /* 暗色：markdown 代码/引用底色反相为浅色微光，避免暗底上的黑块 */
+  html[data-mode="dark"] .md code, html[data-mode="dark"] .md pre {
+    background: rgba(200,215,255,.1); }
+  html[data-mode="dark"] .md blockquote { background: rgba(200,215,255,.07); }
+
+  /* ── 风格维度（data-style） ──────────────────────────── */
+  /* 拟态 Neumorphism：纯色背景 + 同色凸起阴影，无模糊、无流动 */
+  html[data-style="neumorphism"] {
+    --blur: 0px; --bg-anim: none;
+    --lg-bg: var(--neu-surface);
+    --lg-border: 1px solid transparent;
+    --lg-inset: 6px 6px 14px var(--neu-dark), -6px -6px 14px var(--neu-light);
+  }
+  html[data-style="neumorphism"][data-mode="light"] {
+    --neu-surface: #e6ebf5; --neu-dark: #c4ccdc; --neu-light: #ffffff;
+    --txt: #39435c; --dim: #6b7794; --line: rgba(60,72,110,.12); --title-color: #2b3550;
+  }
+  html[data-style="neumorphism"][data-mode="dark"] {
+    --neu-surface: #16181f; --neu-dark: #0c0d12; --neu-light: #24272f;
+    --txt: #dfe5f2; --dim: #97a2bd; --line: rgba(150,165,210,.12); --title-color: #eef1fa;
+  }
+  /* 报纸 Newspaper：纯色米/墨背景 + 楷体 + 硬边框，无模糊无流动 */
+  html[data-style="newspaper"] {
+    --blur: 0px; --bg-anim: none;
+    --font: "Kaiti SC", "STKaiti", "楷体", "KaiTi", "Kaiti TC", "BiauKai", serif;
+    --lg-bg: var(--np-surface); --lg-border: 1px solid var(--np-rule);
+    --lg-inset: none;
+  }
+  html[data-style="newspaper"][data-mode="light"] {
+    --np-surface: #f4efe3; --np-rule: #2b2620; --txt: #211c16; --dim: #5c5347;
+    --line: #2b2620; --title-color: #1a1610;
+  }
+  html[data-style="newspaper"][data-mode="dark"] {
+    --np-surface: #0e0d0a; --np-rule: #cabfa6; --txt: #ece4d2; --dim: #a89c84;
+    --line: #4a4538; --title-color: #f3ecda;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--page-bg, #c3cdf0); color: var(--txt);
+    font: 14px/1.6 var(--font);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; transition: background .4s, color .4s; }
+  /* 整页窗口滚动条：沿用左侧泳道 .left 的细滚动条风格（9px、圆角、半透明 thumb、悬停加深），
+     使主页右侧随页面流动时的窗口滚动条与左栏视觉统一。Firefox 用 scrollbar-color 近似。
+     同时作用于 html 与 body：标准模式下视口滚动条归属随布局可能在 html 或 body 上
+     （本页 body 为 min-height:100vh 的 flex 容器），两者都写才稳妥命中。 */
+  html, body { scrollbar-width: thin; scrollbar-color: rgba(60,72,110,.32) transparent; }
+  html::-webkit-scrollbar, body::-webkit-scrollbar { width: 9px; }
+  html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb { background: rgba(60,72,110,.32); border-radius: 9px; }
+  html::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover { background: rgba(60,72,110,.5); }
+  html::-webkit-scrollbar-track, body::-webkit-scrollbar-track { background: transparent; }
+  /* 暗色：半透明深色 thumb 在暗底上几乎不可见，改用浅色叠加（与 .left 同形、仅反色） */
+  html[data-mode="dark"], html[data-mode="dark"] body { scrollbar-color: rgba(180,195,235,.3) transparent; }
+  html[data-mode="dark"]::-webkit-scrollbar-thumb, html[data-mode="dark"] body::-webkit-scrollbar-thumb { background: rgba(180,195,235,.3); }
+  html[data-mode="dark"]::-webkit-scrollbar-thumb:hover, html[data-mode="dark"] body::-webkit-scrollbar-thumb:hover { background: rgba(180,195,235,.5); }
+  /* 非玻璃主题：纯色背景由 --page-bg 接管，隐藏流动渐变层 */
+  html[data-style="neumorphism"] { --page-bg: var(--neu-surface); }
+  html[data-style="newspaper"]   { --page-bg: var(--np-surface); }
+  /* 非玻璃主题：所有磨砂层去掉 backdrop-filter（纯色底，模糊纯属浪费 GPU）与镜面高光 */
+  html[data-style="neumorphism"] .topbar, html[data-style="neumorphism"] .chip,
+  html[data-style="neumorphism"] .box, html[data-style="neumorphism"] footer,
+  html[data-style="neumorphism"] .ctxmenu, html[data-style="neumorphism"] .toast, html[data-style="neumorphism"] .modal,
+  html[data-style="newspaper"] .topbar, html[data-style="newspaper"] .chip,
+  html[data-style="newspaper"] .box, html[data-style="newspaper"] footer,
+  html[data-style="newspaper"] .ctxmenu, html[data-style="newspaper"] .toast, html[data-style="newspaper"] .modal {
+    backdrop-filter: none; -webkit-backdrop-filter: none; }
+  html[data-style="neumorphism"] .box::before, html[data-style="neumorphism"] .toast::before,
+  html[data-style="neumorphism"] .modal::before,
+  html[data-style="newspaper"] .box::before, html[data-style="newspaper"] .toast::before,
+  html[data-style="newspaper"] .modal::before { display: none; }
+  /* 报纸主题：方角、硬墨线，去圆角的"印刷"质感 */
+  html[data-style="newspaper"] .box, html[data-style="newspaper"] .chip,
+  html[data-style="newspaper"] .toast, html[data-style="newspaper"] .modal,
+  html[data-style="newspaper"] .ctxmenu, html[data-style="newspaper"] .f,
+  html[data-style="newspaper"] .md .mermaid { border-radius: 2px; box-shadow: none; }
+  html[data-style="newspaper"] .topbar { box-shadow: none; border-bottom: 2px solid var(--np-rule); }
+  html[data-style="neumorphism"] .bg, html[data-style="newspaper"] .bg { display: none; }
+  #app { flex: 1 0 auto; }  /* 撑满剩余空间，把页脚顶到最底部 */
+
+  /* 背景：明亮多彩交融流动（仅玻璃主题）。用 transform 平移+旋转超大渐变层（GPU 可合成），
+     替代 background-position 动画（后者每帧 CPU 重绘全屏，是滚动顿挫主因）。 */
+  .bg { position: fixed; inset: 0; z-index: -3; overflow: hidden; }
+  .bg::before { content: ""; position: absolute; top: -75%; left: -75%; width: 250%; height: 250%;
+    background: linear-gradient(125deg, #ff9eb3, #ffd17a, #9ee6c4, #8ec5ff, #c5a3ff, #ff9ed6, #ffd17a, #9ee6c4, #ff9eb3);
+    will-change: transform; transform: translate3d(0,0,0);
+    animation: var(--bg-anim); }
+  /* 暗色玻璃：背景压暗 */
+  html[data-mode="dark"][data-style="glass"] body { background: #11162a; }
+  html[data-mode="dark"][data-style="glass"] .bg::before { filter: saturate(.8) brightness(.5); }
+  html[data-mode="dark"][data-style="glass"] .bg::after {
+    background: radial-gradient(760px 560px at 12% -10%, rgba(120,140,220,.25), transparent 60%),
+                radial-gradient(820px 600px at 90% 110%, rgba(180,120,220,.2), transparent 62%); }
+  .bg::after { content: ""; position: absolute; inset: 0;
+    background: radial-gradient(760px 560px at 12% -10%, rgba(255,255,255,.5), transparent 60%),
+                radial-gradient(820px 600px at 90% 110%, rgba(255,210,150,.42), transparent 62%),
+                radial-gradient(700px 520px at 80% 8%, rgba(150,210,255,.4), transparent 60%); }
+
+  /* GPU 合成的平移+旋转动画：只动 transform，不触发重绘/重排，幅度够大以呈现明显流动 */
+  @keyframes huewash {
+    0%   { transform: translate3d(-30%, -20%, 0) rotate(0deg); }
+    25%  { transform: translate3d(20%, -10%, 0) rotate(8deg); }
+    50%  { transform: translate3d(30%, 20%, 0) rotate(0deg); }
+    75%  { transform: translate3d(-15%, 15%, 0) rotate(-8deg); }
+    100% { transform: translate3d(-30%, -20%, 0) rotate(0deg); }
+  }
+
+  /* 吸顶头部：整块磨砂玻璃 */
+  .topbar { position: sticky; top: 0; z-index: 20; padding: 20px clamp(18px,4vw,64px) 16px;
+    background: var(--lg-bg); border-bottom: var(--lg-border);
+    backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
+    box-shadow: 0 10px 30px -18px rgba(40,50,90,.45), var(--lg-inset);
+    animation: drop 1.4s cubic-bezier(.2,.8,.2,1) both; }
+  h1 { font-size: 24px; font-weight: 680; letter-spacing: .5px; display: flex; align-items: center; gap: 12px; }
+  h1 .cal { filter: drop-shadow(0 4px 12px rgba(120,160,255,.5)); }
+  .sub { color: var(--dim); margin-top: 5px; font-size: 13px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 13px 6px 9px;
+    background: var(--lg-bg); border: var(--lg-border); border-radius: 999px;
+    backdrop-filter: blur(10px) saturate(170%); -webkit-backdrop-filter: blur(10px) saturate(170%);
+    font-size: 12.5px; cursor: pointer; user-select: none; color: var(--txt);
+    transition: transform .4s, box-shadow .5s, background .5s;
+    /* 选中态：外发光阴影 + 液态玻璃内反光 */
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 60%, transparent), 0 6px 16px -7px var(--c), var(--lg-inset); }
+  .chip:hover { transform: translateY(-2px); }
+  /* 未选中态：内陷阴影 + 去色，无外发光 */
+  .chip.off { box-shadow: inset 0 2px 6px rgba(40,50,90,.28); filter: grayscale(.85); opacity: .55; background: rgba(255,255,255,.28); }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); }
+  .chip.off .dot { box-shadow: none; }
+  .chip .emo { font-size: 15px; } .chip .cnt { color: var(--dim); font-size: 11px; }
+  /* 自定义名后的自动代号：半透明小字 */
+  .auto-name { font-size: .82em; opacity: .5; margin-left: 2px; font-weight: 400; }
+
+  /* toast 容器：右上角，多个 toast 依序向下堆叠；移除时下方自动上移补位（flex 重排） */
+  #toast-wrap { position: fixed; top: 18px; right: 18px; z-index: 90;
+    display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: none; }
+  /* 单个 toast：液态玻璃圆角矩形——高亮描边 + 内层反光 + 顶部镜面高光 */
+  .toast { position: relative; max-width: min(380px, calc(100vw - 36px)); padding: 13px 18px;
+    border-radius: 16px; font-size: 15px; line-height: 1.5; color: var(--txt);
+    background: var(--lg-bg);
+    border: var(--lg-border);
+    backdrop-filter: blur(18px) saturate(185%); -webkit-backdrop-filter: blur(18px) saturate(185%);
+    box-shadow: 0 16px 40px -16px rgba(40,50,90,.55), var(--lg-inset);
+    overflow: hidden; pointer-events: auto; transform-origin: right center;
+    /* 初始态：从右侧偏移、缩小、微旋，等待进入 */
+    opacity: 0; transform: translateX(118%) scale(.9) rotate(1.5deg);
+    /* 进入：弹簧回弹曲线，位移/缩放带 overshoot，时长稍长更灵动 */
+    transition:
+      opacity .42s cubic-bezier(.22,1,.36,1),
+      transform .52s cubic-bezier(.34,1.56,.4,1),
+      max-height .42s cubic-bezier(.4,0,.2,1) .06s,
+      margin .42s cubic-bezier(.4,0,.2,1) .06s,
+      padding .42s cubic-bezier(.4,0,.2,1) .06s; }
+  .toast.on { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); max-height: 240px; }
+  /* 退出：向右上方柔和飘出 + 缩小，曲线改顺滑 ease-in，时长加长，先飘走再压扁补位 */
+  .toast.out { pointer-events: none;
+    opacity: 0; transform: translateX(124%) translateY(-6px) scale(.82) rotate(2.5deg);
+    max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: -10px;
+    transition:
+      opacity .5s cubic-bezier(.4,0,1,1),
+      transform .58s cubic-bezier(.5,0,.75,0),
+      max-height .42s cubic-bezier(.4,0,.2,1) .22s,
+      margin .42s cubic-bezier(.4,0,.2,1) .22s,
+      padding .42s cubic-bezier(.4,0,.2,1) .22s; }
+  /* 顶部镜面高光 */
+  .toast::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 50%;
+    background: linear-gradient(to bottom, rgba(255,255,255,.45), transparent); pointer-events: none; }
+  .toast > * { position: relative; }
+  .toast .t-title { font-weight: 680; font-size: 15px; margin-bottom: 4px; color: var(--title-color); }
+  .toast .t-body { font-size: 14px; color: var(--dim); line-height: 1.55; overflow-wrap: anywhere; }
+  .toast.err .t-title { color: #b4453a; }
+  .toast.err { border-color: rgba(255,150,140,.8);
+    background: linear-gradient(135deg, rgba(255,228,224,.7), rgba(255,210,205,.4)); }
+  .toast.clickable { cursor: pointer; }
+
+  /* 右键上下文菜单：鼠标位置动画弹出 */
+  .ctxmenu { position: fixed; z-index: 70; min-width: 150px; padding: 6px;
+    background: var(--lg-bg); border: var(--lg-border); border-radius: 14px;
+    backdrop-filter: blur(22px) saturate(190%); -webkit-backdrop-filter: blur(22px) saturate(190%);
+    box-shadow: 0 18px 44px -16px rgba(40,50,90,.55), var(--lg-inset);
+    opacity: 0; transform: scale(.86); transition: opacity .16s ease, transform .18s cubic-bezier(.2,.9,.3,1.25); }
+  .ctxmenu.on { opacity: 1; transform: scale(1); }
+  .ctxmenu .ctx-head { font-size: 11.5px; color: var(--dim); padding: 5px 10px 7px;
+    border-bottom: 1px solid var(--line); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .ctxmenu .ctx-head .emo { font-size: 14px; }
+  .ctxmenu .ctx-item { padding: 8px 11px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    color: var(--txt); transition: background .15s; white-space: nowrap;
+    display: flex; align-items: center; gap: 8px; }
+  .ctxmenu .ctx-item:hover { background: rgba(110,168,254,.18); }
+  .ctxmenu .ctx-item .ck { margin-left: auto; font-size: 12px; opacity: .9; }
+  /* 菜单分割线 */
+  .ctxmenu .ctx-sep { height: 1px; margin: 5px 8px; background: var(--line); }
+
+  /* 自定义居中模态输入框：背景仅模糊不黑化 + 磨砂半透明卡片 + 动画展开 */
+  .modal-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+    backdrop-filter: blur(0px); opacity: 0; pointer-events: none;
+    transition: opacity .26s ease, backdrop-filter .26s ease; }
+  .modal-overlay.on { opacity: 1; backdrop-filter: blur(6px); pointer-events: auto; }
+  .modal { position: relative; width: min(420px, calc(100vw - 48px)); padding: 22px 22px 18px;
+    background: var(--lg-bg);
+    border: var(--lg-border); border-radius: 22px;
+    backdrop-filter: blur(28px) saturate(190%); -webkit-backdrop-filter: blur(28px) saturate(190%);
+    box-shadow: 0 30px 70px -24px rgba(20,28,60,.65), var(--lg-inset);
+    overflow: hidden;
+    transform: scale(.84) translateY(10px); opacity: 0;
+    transition: transform .3s cubic-bezier(.2,.9,.3,1.3), opacity .26s ease; }
+  /* 液态玻璃顶部镜面高光 */
+  .modal::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 44%;
+    background: linear-gradient(to bottom, rgba(255,255,255,.4), transparent);
+    border-radius: 22px 22px 60% 60% / 22px 22px 30px 30px; pointer-events: none; }
+  .modal > * { position: relative; }
+  .modal-overlay.on .modal { transform: scale(1) translateY(0); opacity: 1; }
+  /* 关于弹窗：放宽尺寸限制，含烟花背景画布 + 版本日志滚动区 */
+  .modal.about { width: min(640px, calc(100vw - 40px)); max-height: calc(100vh - 48px);
+    display: flex; flex-direction: column; }
+  .modal.about::before { display: none; }  /* 关于弹窗用烟花画布，不要镜面高光遮挡 */
+  /* 烟花画布：置于最底层、低透明，确保不遮挡文字 */
+  .modal.about .fireworks { position: absolute; inset: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none; opacity: .5; }
+  .modal.about .about-body { position: relative; z-index: 1; overflow-y: auto; }
+  /* 更新提示条：可点击，醒目渐变 */
+  .about-banner { margin-bottom: 12px; padding: 9px 13px; border-radius: 10px; cursor: pointer;
+    font-size: 13px; color: #fff; background: linear-gradient(120deg, #6ea8fe, #9d7bff);
+    box-shadow: 0 8px 20px -8px rgba(110,123,255,.7); transition: filter .2s; }
+  .about-banner:hover { filter: brightness(1.06); }
+  .about-banner b { font-variant-numeric: tabular-nums; }
+  .about-ver { margin-top: 8px; font-size: 14px; color: var(--dim); }
+  .about-ver b { color: var(--title-color); font-variant-numeric: tabular-nums; }
+  .about-repo { display: inline-block; margin-top: 6px; font-size: 12.5px;
+    color: color-mix(in srgb, #6ea8fe 72%, var(--txt)); text-decoration: none; word-break: break-all; }
+  .about-repo:hover { color: #6ea8fe; text-decoration: underline; }
+  .about-log-label { margin-top: 16px; margin-bottom: 6px; font-size: 11px; letter-spacing: .4px;
+    text-transform: uppercase; color: var(--dim); }
+  .about-new-label { color: color-mix(in srgb, #9d7bff 70%, var(--txt)); }
+  .about-log { padding: 12px 14px; border-radius: 12px;
+    background: rgba(255,255,255,.4); border: 1px solid var(--line); font-size: 13px; }
+  html[data-mode="dark"] .about-log { background: rgba(200,215,255,.07); }
+  .about-log .about-tag { font-weight: 700; font-size: 14px; color: var(--title-color); margin-bottom: 6px; }
+  .about-log .about-err { color: #b4453a; }
+  /* 版本日志手风琴：标题可点击，一次只展开一项 */
+  .acc { display: flex; flex-direction: column; gap: 8px; }
+  .acc-item { border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    background: rgba(255,255,255,.4); }
+  html[data-mode="dark"] .acc-item { background: rgba(200,215,255,.07); }
+  .acc-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer;
+    font-size: 13.5px; font-weight: 650; color: var(--title-color); user-select: none;
+    transition: background .15s; }
+  .acc-head:hover { background: rgba(110,168,254,.12); }
+  .acc-arrow { font-size: 11px; color: var(--dim); transition: transform .42s cubic-bezier(.34,1.4,.4,1); }
+  .acc-item.open .acc-arrow { transform: rotate(90deg); }
+  /* 折叠体：max-height 由 JS 设为真实内容高度，确保展开/收缩走同一段距离、速度对称。
+     灵动且不傻快的缓动；展开末尾放开 overflow 以便内部可滚动。 */
+  .acc-body { max-height: 0; overflow: hidden;
+    transition: max-height .46s cubic-bezier(.4,0,.2,1); }
+  .acc-body.scrollable { overflow-y: auto; }
+  .acc-body .about-log { border: none; border-radius: 0; background: none; padding: 0 14px 14px; }
+  html[data-mode="dark"] .acc-body .about-log { background: none; }
+  .about-copy { margin-top: 14px; font-size: 11px; color: var(--dim); text-align: center; }
+  .modal-title { font-size: 17px; font-weight: 680; letter-spacing: .3px; color: var(--title-color); }
+  .modal-desc { font-size: 12.5px; color: var(--dim); margin-top: 6px; line-height: 1.5; }
+  .modal-desc b { color: var(--txt); font-weight: 650; }
+  .modal-input { width: 100%; margin-top: 16px; padding: 11px 14px; font-size: 14px; color: var(--txt);
+    background: rgba(255,255,255,.62); border: 1px solid var(--line); border-radius: 11px; outline: none;
+    transition: border-color .2s, box-shadow .2s; }
+  .modal-input::placeholder { color: rgba(90,104,132,.6); }
+  .modal-input:focus { border-color: #6ea8fe; box-shadow: 0 0 0 3px rgba(110,168,254,.25); background: rgba(255,255,255,.8); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .modal-btn { padding: 8px 18px; font-size: 13px; font-weight: 600; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--line); transition: transform .18s, box-shadow .3s, background .25s, filter .2s; }
+  .modal-btn:hover { transform: translateY(-1px); }
+  .modal-btn.cancel { background: rgba(255,255,255,.5); color: var(--dim); }
+  .modal-btn.cancel:hover { color: var(--txt); background: rgba(255,255,255,.7); }
+  .modal-btn.ok { color: #fff; border-color: transparent;
+    background: linear-gradient(120deg, #6ea8fe, #9d7bff); box-shadow: 0 8px 20px -8px rgba(110,123,255,.7); }
+  .modal-btn.ok:hover { filter: brightness(1.06); box-shadow: 0 10px 24px -8px rgba(110,123,255,.85); }
+  /* 危险确定键（删除）：红色渐变 */
+  .modal-btn.ok.danger { background: linear-gradient(120deg, #ff7a6e, #e0554a); box-shadow: 0 8px 20px -8px rgba(224,85,74,.7); }
+  /* 编辑模态：放宽宽度容纳源码框；标题/正文标签 + 等宽多行编辑框 */
+  .modal.edit { width: min(680px, calc(100vw - 40px)); }
+  .edit-label { display: block; margin-top: 14px; margin-bottom: 6px; font-size: 11px; letter-spacing: .4px;
+    text-transform: uppercase; color: var(--dim); }
+  .edit-body { min-height: 220px; max-height: 52vh; resize: vertical; line-height: 1.6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: pre-wrap; overflow: auto; }
+  /* 预览模态：只读渲染区，复用编辑模态宽度；内容超高时滚动 */
+  .modal.preview .preview-body { margin-top: 14px; max-height: 64vh; overflow-y: auto; padding-right: 4px; }
+  /* 暗色适配：输入框/编辑框/取消按钮默认硬编码白底，在暗底上是刺眼亮白块；
+     改为半透明浅色叠加（与暗色 .f 字段框同理），placeholder 提亮，保证可读。 */
+  html[data-mode="dark"] .modal-input {
+    background: rgba(200,215,255,.08); border-color: rgba(160,180,230,.18); }
+  html[data-mode="dark"] .modal-input::placeholder { color: rgba(180,195,235,.42); }
+  html[data-mode="dark"] .modal-input:focus {
+    border-color: #6ea8fe; background: rgba(200,215,255,.13); }
+  html[data-mode="dark"] .modal-btn.cancel { background: rgba(200,215,255,.08); }
+  html[data-mode="dark"] .modal-btn.cancel:hover { background: rgba(200,215,255,.14); }
+
+  .wrap { display: flex; gap: clamp(24px,4vw,64px); align-items: flex-start; padding: 26px clamp(18px,4vw,64px) 40px; }
+  /* 左侧泳道：独立滚动视口 */
+  .left { position: sticky; top: calc(var(--topbar-h) + 18px); flex: none;
+    max-height: calc(100vh - var(--topbar-h) - 38px); overflow-y: auto; overflow-x: hidden; }
+  .left::-webkit-scrollbar { width: 9px; }
+  .left::-webkit-scrollbar-thumb { background: rgba(60,72,110,.32); border-radius: 9px; }
+  .left::-webkit-scrollbar-thumb:hover { background: rgba(60,72,110,.5); }
+  .left::-webkit-scrollbar-track { background: transparent; }
+  .stage { position: relative; }
+  /* 右侧：随页面流动，无自身滚动条 */
+  .right { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* 左侧泳道 */
+  svg.rails { position: absolute; inset: 0; overflow: visible; pointer-events: none; z-index: 1; }
+  .rail { stroke-width: 6; fill: none; opacity: .5; stroke-linecap: round; stroke-dasharray: var(--len); stroke-dashoffset: var(--len);
+          animation: draw 2s cubic-bezier(.4,0,.2,1) forwards; }
+  /* 延伸线：贯穿整列、半宽(3)半透明，淡淡延展到页面高度 */
+  .rail-ext { stroke-width: 3; fill: none; opacity: .25; stroke-linecap: round; }
+  /* 时间线节点：作用域限定在 #stage 内，避免 .node 类名泄漏到 mermaid 图的同名节点 */
+  #stage .node { position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2;
+    animation: pop 1s cubic-bezier(.2,.9,.3,1.3) both; transition: left .9s cubic-bezier(.2,.8,.2,1); }
+  #stage .node .knob { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; position: relative;
+    background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--c) 78%, #fff), color-mix(in srgb, var(--c) 35%, #2a344a));
+    border: 2px solid color-mix(in srgb, var(--c) 80%, #fff); font-size: 14px; line-height: 1;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 16%, transparent), 0 4px 14px -2px var(--c);
+    transition: transform .44s, box-shadow .44s; }
+  #stage .node .num { position: absolute; right: -5px; bottom: -5px; min-width: 16px; height: 16px; padding: 0 3px;
+    border-radius: 9px; background: #28323e; border: 1.5px solid var(--c); color: #fff;
+    font-size: 10px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+  /* 跨午夜接续：节点左上角月亮角标 */
+  #stage .node .moon { position: absolute; left: -7px; top: -7px; font-size: 12px; line-height: 1;
+    filter: drop-shadow(0 1px 3px rgba(40,40,90,.5)); }
+  /* full 模式（按主题总结）：节点左上角小火箭角标 */
+  #stage .node .rocket { position: absolute; left: -7px; top: -7px; font-size: 12px; line-height: 1;
+    filter: drop-shadow(0 1px 3px rgba(40,40,90,.5)); }
+  /* 月亮与火箭同时存在时，火箭下移避让 */
+  #stage .node .moon + .rocket { top: 8px; }
+  #stage .node:hover .knob { transform: scale(1.16); }
+  #stage .node.active .knob { transform: scale(1.22); box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 30%, transparent), 0 0 20px var(--c); }
+  /* 节点悬停气泡：单例、挂在 body 上、fixed 定位，避免被左栏 overflow 裁剪。
+     由 JS 按节点位置摆放并填入标题，玻璃主题磨砂样式。 */
+  .node-tip { position: fixed; z-index: 95; padding: 7px 12px; border-radius: 10px; white-space: nowrap;
+    max-width: min(360px, 60vw); overflow: hidden; text-overflow: ellipsis;
+    font-size: 12.5px; font-weight: 600; line-height: 1.3; color: var(--txt);
+    background: var(--lg-bg); border: var(--lg-border);
+    backdrop-filter: blur(16px) saturate(185%); -webkit-backdrop-filter: blur(16px) saturate(185%);
+    box-shadow: 0 12px 30px -12px rgba(40,50,90,.55), var(--lg-inset);
+    opacity: 0; pointer-events: none; transform: translateY(4px);
+    transition: opacity .16s ease, transform .2s cubic-bezier(.2,.9,.3,1.2); }
+  .node-tip.on { opacity: 1; transform: translateY(0); }
+
+  /* 连接线：静态虚线、低透明、最底层 */
+  svg.link { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: -1; }
+  svg.link path { fill: none; stroke-width: 2; stroke-dasharray: 5 4; opacity: 0; transition: opacity .6s; }
+  svg.link path.on { opacity: .5; }
+
+  /* 右侧：拆成多个液态玻璃框，纵向堆叠 */
+  .box { position: relative; overflow: hidden; background: var(--lg-bg); border: var(--lg-border); border-radius: 16px;
+    padding: 16px 20px; backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
+    box-shadow: 0 14px 38px -22px rgba(40,50,90,.5), var(--lg-inset); animation: fadein .84s cubic-bezier(.2,.8,.2,1) both; }
+  /* 液态玻璃顶部镜面高光 */
+  .box::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 42%;
+    background: linear-gradient(to bottom, rgba(255,255,255,.35), transparent); pointer-events: none; z-index: 0; }
+  .box > * { position: relative; z-index: 1; }
+  .box .bt { font-size: 11px; letter-spacing: .4px; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+  .empty { text-align: center; color: var(--dim); padding: 56px 20px; }
+
+  .d-head { display: flex; align-items: center; gap: 12px; }
+  .d-emo { font-size: 30px; filter: drop-shadow(0 3px 10px color-mix(in srgb, var(--c) 60%, transparent)); }
+  .d-who { font-size: 18px; font-weight: 680; }
+  .d-seq { margin-left: auto; font-size: 12px; color: var(--dim); border: 1px solid var(--line); padding: 3px 10px; border-radius: 999px; }
+
+  /* 标题：每条日志单独拎出的醒目大标题，置于详情面板首框顶部。
+     右侧留出空间避让绝对定位的操作条，避免长标题压到按钮下方。 */
+  .d-title { font-size: 21px; font-weight: 720; line-height: 1.35; letter-spacing: .3px;
+    color: var(--title-color); margin-bottom: 12px; padding-right: 170px; }
+  /* 详情操作条：右上角编辑/删除按钮 */
+  /* 详情操作条：绝对定位到首框右上角（脱离文档流，避免被随后整宽的 .d-title 盖住点击；
+     float 方案下浮动元素绘制层级在后续块级元素之下，是点击区"看得到点不到"的根因）。 */
+  .d-actions { position: absolute; top: 14px; right: 16px; z-index: 3; display: flex; gap: 8px; }
+  .d-act { font: inherit; font-size: 13px; padding: 8px 15px; border-radius: 10px; cursor: pointer;
+    color: var(--txt); background: var(--lg-bg); border: var(--lg-border);
+    box-shadow: var(--lg-inset); transition: transform .18s, box-shadow .3s, background .25s;
+    display: inline-flex; align-items: center; gap: 5px; line-height: 1; white-space: nowrap; }
+  .d-act:hover { transform: translateY(-1px); background: rgba(110,168,254,.14); }
+  .d-act.danger:hover { background: rgba(255,120,110,.16); color: #b4453a; }
+  /* 标题下方的会话头降级为副信息 */
+  .box .d-title + .d-head { padding-top: 10px; border-top: 1px solid var(--line); }
+  .box .d-title + .d-head .d-emo { font-size: 22px; }
+  .box .d-title + .d-head .d-who { font-size: 14px; color: var(--dim); font-weight: 600; }
+
+  /* 跨午夜接续标注（详情面板）：月色提示条 */
+  .carry { margin-top: 12px; padding: 9px 13px; font-size: 12.5px; line-height: 1.5;
+    color: var(--txt); background: linear-gradient(100deg, rgba(157,123,255,.16), rgba(110,168,254,.14));
+    border: 1px solid rgba(157,123,255,.4); border-radius: 10px; }
+  .carry b { color: var(--title-color); }
+
+  .sumbox .d-sum { overflow: visible; }
+
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .f { background: linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.28));
+    border: 1px solid rgba(255,255,255,.6); border-radius: 10px; padding: 9px 12px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
+  .f .k { font-size: 10.5px; color: var(--dim); letter-spacing: .3px; text-transform: uppercase; }
+  .f .v { font-size: 13px; margin-top: 3px; word-break: break-all; }
+  .f.wide { grid-column: 1 / -1; } .f .v.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+  /* markdown 排版 */
+  .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
+  .md { font-size: 14.5px; line-height: 1.7; color: var(--txt); }
+  .md h1,.md h2,.md h3,.md h4,.md h5,.md h6 { margin: 14px 0 8px; line-height: 1.3; font-weight: 680; }
+  .md h1 { font-size: 18px; } .md h2 { font-size: 16px; } .md h3 { font-size: 14.5px; color: var(--dim); }
+  .md h4 { font-size: 13.5px; color: var(--dim); } .md h5 { font-size: 13px; color: var(--dim); }
+  .md h6 { font-size: 12.5px; color: var(--dim); font-weight: 650; }
+  /* mermaid 图：磨砂浅底容器，超宽时横向滚动（不压缩图，保自然尺寸） */
+  .md .mermaid { margin: 12px 0; padding: 12px; border-radius: 12px; overflow-x: auto;
+    background: linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.3));
+    border: 1px solid rgba(255,255,255,.6); box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    text-align: center; }
+  .md .mermaid svg { max-width: none; height: auto; }
+  .md .mermaid[data-failed] { text-align: left; color: #b4453a; font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  /* LaTeX 公式：块级居中、超宽横向滚动；行内随文。渲染失败回退红色等宽源码 */
+  .md .math-block { margin: 12px 0; overflow-x: auto; overflow-y: hidden; text-align: center; padding: 4px 0; }
+  .md .math-inline { padding: 0 1px; }
+  .md .math-block[data-failed], .md .math-inline[data-failed] {
+    color: #b4453a; font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  /* KaTeX 颜色随主题文字色（亮/暗/报纸通用） */
+  .md .katex { color: var(--txt); font-size: 1.05em; }
+  .md p { margin: 8px 0; } .md ul,.md ol { margin: 8px 0; padding-left: 22px; } .md li { margin: 3px 0; }
+  .md a { color: color-mix(in srgb, var(--c) 60%, #1c2438); text-decoration: none; border-bottom: 1px dashed currentColor; }
+  .md code { background: rgba(40,50,90,.1); padding: 1.5px 6px; border-radius: 5px; font: 12.5px/1.5 ui-monospace, Menlo, monospace; }
+  .md pre { background: rgba(40,50,90,.08); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 10px 0; }
+  .md pre code { background: none; padding: 0; }
+  .md blockquote { margin: 10px 0; padding: 4px 14px; border-left: 3px solid var(--c); color: var(--dim); background: rgba(40,50,90,.05); border-radius: 0 8px 8px 0; }
+  .md table { border-collapse: collapse; margin: 10px 0; width: 100%; font-size: 13px; }
+  .md th,.md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  .md th { background: color-mix(in srgb, var(--c) 22%, transparent); font-weight: 650; }
+  .md tr:nth-child(even) td { background: rgba(40,50,90,.04); }
+  .md hr { border: none; border-top: 1px dashed var(--line); margin: 12px 0; }
+  .md strong { color: var(--title-color); } .md em { color: var(--dim); }
+
+  /* 页脚：液态玻璃，随内容流动（不固定）。一行一组数据，加大行间距 */
+  footer { margin-top: 10px;
+    padding: 22px clamp(18px,4vw,64px); background: var(--lg-bg);
+    backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
+    border-top: var(--lg-border);
+    box-shadow: 0 -10px 30px -18px rgba(40,50,90,.4), var(--lg-inset); color: var(--dim); font-size: 12.5px;
+    display: flex; flex-direction: column; align-items: center; gap: 11px; text-align: center; line-height: 1.7; }
+  footer .span { color: var(--txt); font-variant-numeric: tabular-nums; }
+  footer .f-row { display: block; }
+  footer .f-copy { margin-top: 4px; color: var(--dim); font-size: 11.5px; letter-spacing: .2px; }
+  footer .f-ver { font-variant-numeric: tabular-nums; }
+  footer a { color: color-mix(in srgb, #6ea8fe 70%, var(--txt)); text-decoration: none;
+    transition: color .2s; }
+  footer a:hover { color: #6ea8fe; }
+
+  @keyframes drop { from{opacity:0; transform:translateY(-14px)} to{opacity:1; transform:none} }
+  @keyframes pop { from{opacity:0; transform:translate(-50%,-50%) scale(.4)} to{opacity:1; transform:translate(-50%,-50%) scale(1)} }
+  @keyframes draw { to{stroke-dashoffset:0} }
+  @keyframes fadein { from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none} }
+  @media (prefers-reduced-motion: reduce) { *{animation:none !important} }
+
+  /* ── 全文搜索 ─────────────────────────────────────────── */
+  /* 固定在页面右上角，与大标题平行；上、右边距相等。默认折叠为圆形图标，点击展开。 */
+  .search { position: fixed; top: 20px; right: 20px; z-index: 40; }
+  .search-bar { display: flex; align-items: center; gap: 0;
+    background: var(--lg-bg); border: var(--lg-border); border-radius: 999px;
+    backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
+    box-shadow: 0 8px 22px -10px rgba(40,50,90,.4), var(--lg-inset);
+    overflow: hidden; transition: gap .3s; }
+  /* 图标按钮：折叠态是 40px 圆形点击区 */
+  .search-ico { flex: none; width: 40px; height: 40px; border: none; background: transparent;
+    cursor: pointer; font-size: 16px; line-height: 1; color: var(--txt);
+    display: grid; place-items: center; transition: background .15s; }
+  .search-ico:hover { background: rgba(110,168,254,.16); }
+  /* 输入框：折叠态宽度 0、不可见；展开态张开 */
+  .search-input { width: 0; padding: 0; border: none; outline: none; background: transparent;
+    font: inherit; font-size: 13.5px; color: var(--txt);
+    opacity: 0; transition: width .3s cubic-bezier(.2,.8,.2,1), opacity .25s, padding .3s; }
+  .search-input::placeholder { color: var(--dim); opacity: .7; }
+  .search-clear { flex: none; border: none; background: transparent; cursor: pointer; color: var(--dim);
+    font-size: 13px; width: 0; opacity: 0; padding: 0; border-radius: 999px;
+    transition: width .2s, opacity .2s, background .15s, color .15s; overflow: hidden; }
+  .search-clear:hover { background: rgba(110,168,254,.16); color: var(--txt); }
+  /* 展开态：输入框张开到固定宽度（窄屏自适应），清空键出现 */
+  .search.open .search-bar { padding-right: 6px; }
+  .search.open .search-input { width: min(46vw, 300px); opacity: 1; padding: 0 8px 0 4px; }
+  .search.open .search-clear { width: 26px; height: 26px; opacity: 1; display: grid; place-items: center; }
+
+  /* 结果浮层：贴搜索框下方、右对齐，独立滚动 */
+  .search-results { position: absolute; top: calc(100% + 8px); right: 0; width: min(92vw, 420px);
+    z-index: 41; max-height: min(64vh, 540px); overflow-y: auto; padding: 6px;
+    background: var(--lg-bg); border: var(--lg-border); border-radius: 14px;
+    backdrop-filter: blur(22px) saturate(185%); -webkit-backdrop-filter: blur(22px) saturate(185%);
+    box-shadow: 0 18px 44px -16px rgba(40,50,90,.5), var(--lg-inset); }
+  .search-results::-webkit-scrollbar { width: 9px; }
+  .search-results::-webkit-scrollbar-thumb { background: rgba(60,72,110,.32); border-radius: 9px; }
+  html[data-mode="dark"] .search-results::-webkit-scrollbar-thumb { background: rgba(180,195,235,.3); }
+  .search-count, .search-empty { font-size: 11.5px; color: var(--dim); padding: 6px 10px; }
+  .search-empty { text-align: center; padding: 18px 10px; }
+
+  /* 单条结果 */
+  .search-item { padding: 10px 12px; border-radius: 10px; cursor: pointer;
+    margin-bottom: 4px; transition: background .15s; }
+  .search-item:hover { background: rgba(110,168,254,.12); }
+  .sr-head { display: flex; align-items: center; gap: 8px; }
+  .sr-emo { font-size: 15px; }
+  .sr-title { font-size: 14px; font-weight: 650; color: var(--title-color);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .sr-seq { font-size: 11px; color: var(--dim); border: 1px solid var(--line); padding: 1px 7px; border-radius: 999px; }
+  .sr-meta { font-size: 11.5px; color: var(--dim); margin: 3px 0 5px; }
+  .sr-hit { font-size: 12.5px; color: var(--txt); line-height: 1.5; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .sr-field { display: inline-block; font-size: 10.5px; color: var(--dim);
+    background: rgba(110,168,254,.14); border-radius: 5px; padding: 0 6px; margin-right: 6px; }
+  .search mark, .sr-hit mark { background: color-mix(in srgb, #ffd166 70%, transparent);
+    color: inherit; border-radius: 3px; padding: 0 1px; }
+  html[data-mode="dark"] .search mark { background: color-mix(in srgb, #ffd166 40%, transparent); }
+
+  /* 命中节点闪烁高亮（搜索结果点击后） */
+  @keyframes node-flash {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    30% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--c) 45%, transparent); }
+  }
+  #stage .node.flash .knob { animation: node-flash 1.1s ease-out 2; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<svg class="link"><path id="linkpath"></path></svg>
+<div class="topbar" id="topbar"></div>
+<div id="app"></div>
+<footer id="footer"></footer>
+<!-- 数据走外部 JS 资产：file:// 下经典脚本不受 CORS 限制，页面运行时自行读取。
+     data.js 为当天数据（同目录）；aliases.js 为全局会话别名（root 根，所有日期共享 ../aliases.js）。
+     改别名只需重写 aliases.js，所有页面刷新即生效，无需重渲染 HTML。 -->
+<script src="./data.js"></script>
+<script src="../aliases.js"></script>
+<script src="../version.js"></script>
+<!-- mermaid 图表库：优先本地副本（root 根，离线可用），加载失败则回退 CDN。
+     onerror 动态换源；mermaid 就绪后由 renderMermaid() 渲染当前详情里的图。 -->
+<script src="../mermaid.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';s.onload=function(){window.__mermaidReady&&window.__mermaidReady()};document.head.appendChild(s);"></script>
+<!-- KaTeX 公式库：同样本地副本优先（root 根 katex/，含 woff2 字体，离线可用），失败回退 CDN。
+     css 里字体走相对路径 fonts/*.woff2；js 就绪后由 renderMath() 渲染当前详情里的公式。 -->
+<link rel="stylesheet" href="../katex/katex.min.css"
+      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';">
+<script src="../katex/katex.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';s.onload=function(){window.__katexReady&&window.__katexReady()};document.head.appendChild(s);"></script>
+<script>
+// 数据真源：来自 data.js；缺失时退化为空，避免离线打开报错。
+const DATA = (typeof window.AILOG_DATA !== "undefined" && window.AILOG_DATA) || { date: "", entries: [] };
+
+// 高级感配色：低饱和宝石色 + 霓虹
+const PALETTE = ["#6ea8fe","#9d7bff","#f178b6","#ffb454","#46d1c4","#7ee787","#ff8a8a","#c084fc","#56c2ff","#ffd166"];
+const ROW = 72, TOP = 30, LANE_X0 = 40, LANE_GAP = 52;
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+// CSS 属性选择器转义（会话 id 通常安全，仍做兜底以防特殊字符）
+const cssEsc = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/["\\]/g, "\\$&");
+const laneX = (lane) => LANE_X0 + lane * LANE_GAP;
+const rowY = (i) => TOP + i * ROW;
+// 时间范围（时长）格式：001天01时01分01秒。未达 1 天不显示「天」（后续单位同理），
+// 一旦某高位单位出现，其后所有单位都补零显示。天 3 位、时/分/秒各 2 位。
+const fmtDur = (s) => {
+  if (s == null) return "";
+  s = Math.max(0, Math.floor(s));
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600),
+        m = Math.floor(s % 3600 / 60), sec = s % 60;
+  const p = (n, w) => String(n).padStart(w, "0");
+  if (d > 0) return `${p(d,3)}天${p(h,2)}时${p(m,2)}分${p(sec,2)}秒`;
+  if (h > 0) return `${p(h,2)}时${p(m,2)}分${p(sec,2)}秒`;
+  if (m > 0) return `${p(m,2)}分${p(sec,2)}秒`;
+  return `${p(sec,2)}秒`;
+};
+// 时间节点格式：补足为 2000-01-01 01:01:01。date 缺省用 DATA.date；只有 HH:MM:SS 时拼上日期。
+const fmtAt = (val, date) => {
+  if (!val) return "";
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(s)) return s.slice(0, 19).replace("T", " ");
+  if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return `${date || DATA.date} ${s}`;
+  return s;
+};
+const fmtTok = (n) => n == null ? "" : (n >= 1e6 ? (n/1e6).toFixed(2)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"k" : String(n));
+
+// ── 会话自定义别名 ─────────────────────────────────────────────
+// 两层：localStorage 软别名（右键即时改、跨所有日期同源共享）覆盖 DATA.aliases
+// 硬别名（脚本 --rename 固化注入，换设备/清缓存仍在）。软层优先。
+const LS_KEY = "ai-log:aliases";
+// 硬别名来自全局资产 aliases.js（脚本 --rename 维护，所有日期共享）；软别名见 localStorage。
+const HARD_ALIASES = (typeof window.AILOG_ALIASES !== "undefined" && window.AILOG_ALIASES) || {};
+function loadLocalAliases() {
+  try { const v = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); return v && typeof v === "object" ? v : {}; }
+  catch (_) { return {}; }
+}
+function saveLocalAlias(id, alias) {
+  const m = loadLocalAliases();
+  if (alias) m[id] = alias; else delete m[id];
+  try { localStorage.setItem(LS_KEY, JSON.stringify(m)); } catch (_) {}
+}
+// 该会话当前生效的自定义名（软层优先，无则硬层，再无则 null）
+function aliasOf(id) {
+  const local = loadLocalAliases();
+  if (id in local) return local[id];
+  if (id in HARD_ALIASES) return HARD_ALIASES[id];
+  return null;
+}
+// 自动生成的原始代号（name-suffix）
+const autoName = (s) => `${s.name}-${s.id.split("-")[1] || ""}`;
+// 展示用 HTML：有别名时为「自定义名(自动名)」，括号及内为半透明小字
+function displayNameHtml(s) {
+  const alias = aliasOf(s.id), auto = autoName(s);
+  return alias
+    ? `${esc(alias)}<span class="auto-name">(${esc(auto)})</span>`
+    : esc(auto);
+}
+
+// ── 日志条目本地编辑覆盖层 ─────────────────────────────────────
+// 与别名同理的双层模型：网页内改标题/正文/删除 → 即时写 localStorage（跨设备不携带，
+// 但同源跨日期共享、刷新即生效），并在控制台打印 python 命令永久落盘到 data.json。
+// 覆盖项按「日期#seq」定位（seq 为当天写入时固定的全局序号，稳定可用）。
+const EDIT_KEY = "ai-log:edits";
+const entryKey = (e) => `${DATA.date}#${e.seq}`;
+function loadEdits() {
+  try { const v = JSON.parse(localStorage.getItem(EDIT_KEY) || "{}"); return v && typeof v === "object" ? v : {}; }
+  catch (_) { return {}; }
+}
+function saveEdit(key, patch) {
+  const m = loadEdits();
+  if (patch === null) delete m[key];
+  else m[key] = Object.assign({}, m[key], patch);
+  try { localStorage.setItem(EDIT_KEY, JSON.stringify(m)); } catch (_) {}
+}
+// 把覆盖层应用到原始条目，返回生效后的副本（含 _deleted 标记）
+function effectiveEntry(e) {
+  const ov = loadEdits()[entryKey(e)];
+  if (!ov) return e;
+  const merged = Object.assign({}, e);
+  if (ov.deleted) merged._deleted = true;
+  if (ov.title != null) merged.title = ov.title;
+  if (ov.summary != null) merged.summary = ov.summary;
+  return merged;
+}
+// 可复制的落盘命令（永久写回 data.json，换设备/清缓存仍在）
+const editCmd = (e, fields) => {
+  const parts = [`python3 <skill>/scripts/ai_logger.py --edit "${DATA.date}" ${e.seq}`];
+  if ("title" in fields) parts.push(`--title ${shq(fields.title)}`);
+  if ("summary" in fields) parts.push(`--summary ${shq(fields.summary)}`);
+  return parts.join(" ");
+};
+const deleteCmd = (e) => `python3 <skill>/scripts/ai_logger.py --delete "${DATA.date}" ${e.seq}`;
+// shell 单引号转义：把内部 ' 替换为 '\'' ，整体用单引号包裹
+const shq = (s) => "'" + String(s == null ? "" : s).replace(/'/g, "'\\''") + "'";
+
+function mdInline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, (m, c) => `<code>${c}</code>`)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+function renderMd(src) {
+  src = String(src || "").replace(/\r\n/g, "\n");
+  // ── 公式预处理：先把 LaTeX 抽成占位符，避免被 markdown 行内解析（_ * \ 等）破坏 ──
+  // 先「藏起」代码块与行内代码，使其中的 $（如 shell $VAR）不被误判为公式；抽完公式再还原。
+  const math = [], stash = [];
+  src = src.replace(/```[\s\S]*?```/g, (m) => { stash.push(m); return ` C${stash.length - 1} `; });
+  src = src.replace(/`[^`\n]*`/g, (m) => { stash.push(m); return ` C${stash.length - 1} `; });
+  // 块级 $$...$$（可跨行）→ 占位；随后行内 $...$（同行、非空、不与 $$ 冲突）
+  src = src.replace(/\$\$([\s\S]+?)\$\$/g, (m, c) => { math.push({ display: true, src: c.trim() }); return ` M${math.length - 1} `; });
+  src = src.replace(/(^|[^\\$])\$(?!\$)([^\n$]+?)\$(?!\$)/g, (m, pre, c) => { math.push({ display: false, src: c.trim() }); return `${pre} M${math.length - 1} `; });
+  // 还原代码区，交给下方行解析器正常处理
+  src = src.replace(/ C(\d+) /g, (m, i) => stash[+i]);
+
+  const lines = src.split("\n");
+  let html = "", i = 0;
+  const st = []; const closeList = () => { while (st.length) html += st.pop() === "ul" ? "</ul>" : "</ol>"; };
+  while (i < lines.length) {
+    const ln = lines[i];
+    if (/^```/.test(ln)) {
+      closeList();
+      const lang = ln.replace(/^```/, "").trim().toLowerCase();
+      i++; let code = "";
+      while (i < lines.length && !/^```/.test(lines[i])) { code += lines[i] + "\n"; i++; }
+      i++;
+      // mermaid 代码块 → 交给 mermaid 渲染（保留原始文本，不转义/不当代码）
+      if (lang === "mermaid") { html += `<div class="mermaid">${esc(code)}</div>`; continue; }
+      html += `<pre><code>${esc(code)}</code></pre>`; continue;
+    }
+    if (/\|/.test(ln) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i+1].replace(/[^|:\-\s]/g, ""))) {
+      closeList(); const cells = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+      const head = cells(ln); i += 2;
+      html += "<table><thead><tr>" + head.map((c) => `<th>${mdInline(c)}</th>`).join("") + "</tr></thead><tbody>";
+      while (i < lines.length && /\|/.test(lines[i])) { html += "<tr>" + cells(lines[i]).map((c) => `<td>${mdInline(c)}</td>`).join("") + "</tr>"; i++; }
+      html += "</tbody></table>"; continue; }
+    let m;
+    if ((m = ln.match(/^(#{1,6})\s+(.*)/))) { closeList(); const lv = Math.min(m[1].length, 6); html += `<h${lv}>${mdInline(m[2])}</h${lv}>`; i++; continue; }
+    if (/^\s*>\s?/.test(ln)) { closeList(); html += `<blockquote>${mdInline(ln.replace(/^\s*>\s?/, ""))}</blockquote>`; i++; continue; }
+    if (/^\s*([-*_])\1{1,}\s*$/.test(ln)) { closeList(); html += "<hr>"; i++; continue; }
+    if ((m = ln.match(/^\s*\d+\.\s+(.*)/))) { if (st[st.length-1] !== "ol") { closeList(); html += "<ol>"; st.push("ol"); } html += `<li>${mdInline(m[1])}</li>`; i++; continue; }
+    if ((m = ln.match(/^\s*[-*]\s+(.*)/))) { if (st[st.length-1] !== "ul") { closeList(); html += "<ul>"; st.push("ul"); } html += `<li>${mdInline(m[1])}</li>`; i++; continue; }
+    if (ln.trim() === "") { closeList(); i++; continue; }
+    closeList(); html += `<p>${mdInline(ln)}</p>`; i++;
+  }
+  closeList();
+  // ── 还原公式占位符为容器元素（源码存 data-src，KaTeX 就绪后由 renderMath 填充）──
+  const mathEl = (idx) => {
+    const it = math[idx];
+    return it.display
+      ? `<div class="math-block" data-src="${esc(it.src)}"></div>`
+      : `<span class="math-inline" data-src="${esc(it.src)}"></span>`;
+  };
+  // 独占整段的块级公式：剥掉外层 <p>，避免 div 嵌在 p 内导致浏览器自动断开
+  html = html.replace(/<p> M(\d+) <\/p>/g, (m, i) => mathEl(+i));
+  html = html.replace(/ M(\d+) /g, (m, i) => mathEl(+i));
+  return html;
+}
+
+// ── mermaid 渲染 ───────────────────────────────────────────────
+// 库可能异步到达（本地或 CDN 回退）。就绪前先记一个 pending 标记，
+// 到位后初始化并补渲染当前详情面板里的 .mermaid 图。
+let _mermaidInited = false, _mermaidPending = false;
+// 确保 mermaid 已初始化，返回「现在是否可用于渲染」：
+// 已初始化 → 直接 true；未初始化但库已到 → 初始化后 true；库未到 → false。
+// 注意：不能写成「if (_mermaidInited) return false」——那会让已就绪的库被误判为不可用，
+// 导致除首次外每次渲染都被跳过（首次成功、后续必败、刷新重置的根因）。
+function initMermaid() {
+  if (_mermaidInited) return true;
+  if (typeof window.mermaid === "undefined") return false;
+  try {
+    window.mermaid.initialize({ startOnLoad: false, securityLevel: "loose",
+      theme: "neutral",
+      // useMaxWidth:false → svg 保持自然尺寸不被压缩，超宽时由容器横向滚动承载（见 .mermaid CSS）
+      flowchart: { useMaxWidth: false }, sequence: { useMaxWidth: false },
+      gantt: { useMaxWidth: false }, er: { useMaxWidth: false } });
+    _mermaidInited = true;
+  } catch (_) { return false; }
+  return true;
+}
+async function renderMermaid(scope) {
+  const root = scope || document;
+  const nodes = root.querySelectorAll(".mermaid:not([data-done])");
+  if (!nodes.length) return;
+  if (!initMermaid()) { _mermaidPending = true; return; }  // 库未到，待回调补渲染
+  for (const el of nodes) {
+    const src = el.getAttribute("data-src") || el.textContent;
+    el.setAttribute("data-src", src);                       // 留存源码以便重渲染
+    el.setAttribute("data-done", "1");
+    el.removeAttribute("data-failed");
+    // mermaid v11 的 render 首次偶发抛错（DOM/字体测量时机），重试一次多能成功，
+    // 与「刷新后有概率生效」现象吻合。两次都失败才回退源码文本。
+    let ok = false;
+    for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+      try {
+        const id = "mmd-" + Math.random().toString(36).slice(2, 9);
+        const { svg } = await window.mermaid.render(id, src);
+        el.innerHTML = svg;
+        ok = true;
+      } catch (e) {
+        if (attempt === 0) { await new Promise((r) => setTimeout(r, 60)); continue; }
+        el.setAttribute("data-failed", "1");
+        el.textContent = "mermaid 渲染失败：\n" + src;
+      }
+    }
+  }
+}
+// 库（本地或 CDN 回退）加载完成后的回调：补渲染任何挂起的图
+window.__mermaidReady = function () { _mermaidPending = false; renderMermaid(); };
+window.addEventListener("load", () => { if (_mermaidPending || document.querySelector(".mermaid:not([data-done])")) renderMermaid(); });
+
+// ── KaTeX 公式渲染 ─────────────────────────────────────────────
+// 与 mermaid 同构：库可能异步到达（本地或 CDN 回退）。renderMath 把详情面板里
+// 的 .math-block / .math-inline 占位（data-src 存源码）就地渲染为公式；库未到则挂起，
+// __katexReady 回调或 load 后补渲染。失败回退红色源码，不影响其余正文。
+let _katexPending = false;
+function renderMath(scope) {
+  const root = scope || document;
+  const nodes = root.querySelectorAll(".math-block:not([data-done]), .math-inline:not([data-done])");
+  if (!nodes.length) return;
+  if (typeof window.katex === "undefined") { _katexPending = true; return; }  // 库未到，待回调补渲染
+  for (const el of nodes) {
+    const src = el.getAttribute("data-src") || "";
+    el.setAttribute("data-done", "1");
+    el.removeAttribute("data-failed");
+    try {
+      window.katex.render(src, el, {
+        displayMode: el.classList.contains("math-block"),
+        throwOnError: false, output: "html",
+      });
+    } catch (e) {
+      el.setAttribute("data-failed", "1");
+      el.textContent = (el.classList.contains("math-block") ? "$$" : "$") + src + (el.classList.contains("math-block") ? "$$" : "$");
+    }
+  }
+}
+window.__katexReady = function () { _katexPending = false; renderMath(); };
+window.addEventListener("load", () => { if (_katexPending || document.querySelector(".math-block:not([data-done]), .math-inline:not([data-done])")) renderMath(); });
+
+let META = {}, SESSIONS = [], ENTRIES = [];
+
+function build() {
+  // 应用本地编辑覆盖层：合并标题/正文改动、剔除已删除条目（seq 保持原值用于定位）
+  ENTRIES = (DATA.entries || []).map(effectiveEntry).filter((e) => !e._deleted);
+
+  // 重建前清空容器，使 rebuildAll() 可重复调用（编辑/删除后重渲染）
+  document.getElementById("topbar").innerHTML = "";
+  document.getElementById("app").innerHTML = "";
+
+  // 会话元信息：列号 + 颜色
+  SESSIONS = []; META = {};
+  ENTRIES.forEach((e) => {
+    if (!META[e.id]) {
+      META[e.id] = { id: e.id, emoji: e.emoji, name: e.name, color: PALETTE[SESSIONS.length % PALETTE.length], lane: SESSIONS.length, count: 0, hidden: false };
+      SESSIONS.push(META[e.id]);
+    }
+    META[e.id].count++;
+  });
+
+  // 吸顶头部：标题 + 图例胶囊
+  const topbar = document.getElementById("topbar");
+  const head = document.createElement("div");
+  head.innerHTML = `<h1><span class="cal">🗓️</span> AI 工作日志 · ${esc(DATA.date)}</h1>
+    <div class="sub">${SESSIONS.length} 个会话 · ${ENTRIES.length} 条记录 · 点击胶囊切换该会话显示</div>`;
+  const legend = document.createElement("div");
+  legend.className = "legend";
+  SESSIONS.forEach((s) => {
+    const c = document.createElement("div");
+    c.className = "chip"; c.style.setProperty("--c", s.color); c.dataset.sid = s.id;
+    c.innerHTML = `<span class="dot"></span><span class="emo">${s.emoji}</span><span class="chip-name">${displayNameHtml(s)}</span> <span class="cnt">×${s.count}</span>`;
+    c.onclick = () => toggleSession(s.id, c);
+    c.oncontextmenu = (ev) => { ev.preventDefault(); openChipMenu(ev, s); };
+    c.title = "左键切换显隐 · 右键自定义名称";
+    legend.appendChild(c);
+  });
+  head.appendChild(legend);
+  topbar.appendChild(head);
+
+  // 左侧泳道容器
+  const wrap = document.createElement("div");
+  wrap.className = "wrap";
+  // 左侧滚动视口
+  const left = document.createElement("div");
+  left.className = "left"; left.id = "lane";
+  // 内部舞台（承载 svg + 节点，按全部内容高度撑开，在视口内滚动）
+  const stage = document.createElement("div");
+  stage.className = "stage"; stage.id = "stage";
+  const stageW = LANE_X0 + SESSIONS.length * LANE_GAP + 24;
+  const stageH = rowY(ENTRIES.length - 1) + TOP + 30;
+  stage.style.width = stageW + "px";
+  stage.style.height = stageH + "px";
+  left.style.width = (stageW + 14) + "px";  // 14px 预留滚动条
+
+  // 泳道竖线（同会话首末节点连线）
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "rails");
+  SESSIONS.forEach((s) => {
+    const idx = ENTRIES.map((e, k) => e.id === s.id ? k : -1).filter((k) => k >= 0);
+    const y1 = rowY(idx[0]), y2 = rowY(idx[idx.length - 1]), x = laneX(s.lane);
+    // 延伸线：贯穿整列高度（0 → 底部），半宽 + 半透明，置于主线之下作淡淡的延伸
+    const ext = document.createElementNS(ns, "line");
+    ext.setAttribute("x1", x); ext.setAttribute("x2", x); ext.setAttribute("y1", 0); ext.setAttribute("y2", stageH);
+    ext.setAttribute("stroke", s.color); ext.setAttribute("class", "rail-ext");
+    ext.dataset.sid = s.id;
+    svg.appendChild(ext);
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", x); line.setAttribute("x2", x); line.setAttribute("y1", y1); line.setAttribute("y2", y2);
+    line.setAttribute("stroke", s.color); line.setAttribute("class", "rail");
+    line.dataset.sid = s.id;  // 用于 toggleSession 隐藏/显示
+    line.style.setProperty("--len", Math.max(y2 - y1, 1));
+    svg.appendChild(line);
+  });
+  stage.appendChild(svg);
+
+  // 节点
+  ENTRIES.forEach((e, i) => {
+    const s = META[e.id], y = rowY(i);
+    const n = document.createElement("div");
+    n.className = "node"; n.style.left = laneX(s.lane) + "px"; n.style.top = y + "px";
+    n.style.setProperty("--c", s.color); n.style.animationDelay = (500 + i * 110) + "ms";
+    const moon = e.carryover ? `<span class="moon" title="接续自 ${esc(e.carryover.prev_date)}">🌙</span>` : "";
+    const rocket = e.mode === "full" ? `<span class="rocket" title="按主题总结（full 模式）">🚀</span>` : "";
+    n.innerHTML = `<div class="knob">${e.emoji}<span class="num">${e.seq != null ? e.seq : i + 1}</span>${moon}${rocket}</div>`;
+    n.dataset.i = i; n.dataset.sid = e.id;  // 会话 ID 用于 toggle
+    n.dataset.seq = e.seq != null ? e.seq : i + 1;  // 当天序号：删除重排时定位节点的稳定键
+    n.dataset.tip = e.title ? e.title : autoName(s);  // 悬停气泡文案：标题，无则会话名
+    // index 在删除重排时会变，故点击/右键时实时读 dataset.i（而非闭包捕获旧值）
+    n.onclick = () => select(+n.dataset.i, n);
+    n.addEventListener("mouseenter", () => scheduleNodeTip(n));
+    n.addEventListener("mouseleave", cancelNodeTip);
+    n.oncontextmenu = (ev) => { ev.preventDefault(); ev.stopPropagation(); openNodeMenu(ev, +n.dataset.i, n); };
+    stage.appendChild(n);
+  });
+  left.appendChild(stage);
+
+  // 右侧容器（初始空）
+  const right = document.createElement("div");
+  right.className = "right";
+  right.innerHTML = '<div class="box empty">👈 点击左侧任一节点查看该条日志详情</div>';
+  right.id = "detailwrap";
+
+  wrap.appendChild(left); wrap.appendChild(right);
+  document.getElementById("app").appendChild(wrap);
+
+  // 泳道滚动时重绘连接线
+  left.addEventListener("scroll", () => { scheduleDrawLink(); cancelNodeTip(); }, { passive: true });
+
+  // 页脚：标注时间跨度
+  renderFooter();
+}
+
+let ACTIVE = null;
+
+// 编辑/删除后整页重渲染：重置选中态与连接线，重新 build，再同步吸顶高度
+function rebuildAll() {
+  ACTIVE = null;
+  document.getElementById("linkpath").classList.remove("on");
+  build();
+  syncTopbar();
+}
+
+// 右键胶囊 → 在鼠标位置动画弹出上下文菜单（含「重命名」「清除自定义名」）
+// 通用上下文菜单渲染器。items 元素：{label, act, check} 或 {sep:true}。head 可选（标题行）。
+function openMenu(ev, { head, items }) {
+  closeChipMenu();
+  const menu = document.createElement("div");
+  menu.className = "ctxmenu"; menu.id = "ctxmenu";
+  const rows = items.map((it, i) => it.sep
+    ? `<div class="ctx-sep"></div>`
+    : `<div class="ctx-item" data-i="${i}">${it.label}${it.check ? '<span class="ck">✅</span>' : ""}</div>`).join("");
+  menu.innerHTML = (head ? `<div class="ctx-head">${head}</div>` : "") + rows;
+  document.body.appendChild(menu);
+  // 先离屏测量，再夹取到视口内，避免贴边溢出
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  let x = ev.clientX, y = ev.clientY;
+  if (x + mw + 8 > innerWidth) x = innerWidth - mw - 8;
+  if (y + mh + 8 > innerHeight) y = innerHeight - mh - 8;
+  menu.style.left = x + "px"; menu.style.top = y + "px";
+  menu.style.transformOrigin = `${ev.clientX - x}px ${ev.clientY - y}px`;
+  requestAnimationFrame(() => menu.classList.add("on"));
+  menu.querySelectorAll(".ctx-item").forEach((el) => {
+    el.onclick = () => { const it = items[+el.dataset.i]; closeChipMenu(); it.act && it.act(); };
+  });
+}
+
+// 右键胶囊菜单：显隐 / 重命名 / 恢复自动代号
+function openChipMenu(ev, s) {
+  const hasAlias = !!aliasOf(s.id);
+  const items = [
+    { label: s.hidden ? "👁️ 显示" : "🙈 隐藏",
+      act: () => { const chip = document.querySelector(`.chip[data-sid="${cssEsc(s.id)}"]`); if (chip) toggleSession(s.id, chip); } },
+    { label: "✏️ 重命名", act: () => renameSession(s) },
+  ];
+  if (hasAlias) items.push({ label: "↩️ 恢复自动代号", act: () => { saveLocalAlias(s.id, ""); refreshNames(); if (ACTIVE) drawLink(); showToast("已恢复自动代号", { title: "会话名称" }); console.log(renameCmd(s.id, "")); } });
+  openMenu(ev, { head: `<span class="emo">${s.emoji}</span>${esc(autoName(s))}`, items });
+}
+
+// 页面级右键菜单：刷新 / 主题切换（玻璃·拟态·报纸）/ 关于
+// 主题两维：style(玻璃/拟态/报纸) + mode(光明/黑暗)，各存 localStorage、各自单选。
+const STYLE_KEY = "ai-log:style", MODE_KEY = "ai-log:mode";
+const ls = (k, d) => { try { return localStorage.getItem(k) || d; } catch (_) { return d; } };
+const curStyle = () => ls(STYLE_KEY, "glass");
+const curMode = () => ls(MODE_KEY, "light");
+const STYLE_LABEL = { glass: "玻璃", neumorphism: "拟态", newspaper: "报纸" };
+const MODE_LABEL = { light: "光明", dark: "黑暗" };
+// 把当前两维写到 <html> 属性，CSS 据此切换
+function applyTheme() {
+  document.documentElement.setAttribute("data-style", curStyle());
+  document.documentElement.setAttribute("data-mode", curMode());
+}
+function openPageMenu(ev) {
+  const st = curStyle(), md = curMode();
+  const styleItem = (k, l) => ({ label: l, check: st === k, act: () => setStyle(k) });
+  const modeItem = (k, l) => ({ label: l, check: md === k, act: () => setMode(k) });
+  openMenu(ev, { items: [
+    { label: "🔄 刷新", act: () => location.reload() },
+    { sep: true },
+    styleItem("glass", "🫧 玻璃"),
+    styleItem("neumorphism", "🧊 拟态"),
+    styleItem("newspaper", "📰 报纸"),
+    { sep: true },
+    modeItem("light", "☀️ 光明"),
+    modeItem("dark", "🌙 黑暗"),
+    { sep: true },
+    { label: "ℹ️ 关于", act: showAbout },
+  ] });
+}
+function setStyle(key) {
+  try { localStorage.setItem(STYLE_KEY, key); } catch (_) {}
+  applyTheme();
+  showToast(`已切换为「${STYLE_LABEL[key]}」风格`, { title: "主题" });
+}
+function setMode(key) {
+  try { localStorage.setItem(MODE_KEY, key); } catch (_) {}
+  applyTheme();
+  showToast(`已切换为「${MODE_LABEL[key]}」模式`, { title: "主题" });
+}
+// Canvas 烟花特效：在给定 canvas 上循环升空+爆炸的粒子动画，返回 {stop}
+function startFireworks(canvas) {
+  if (!canvas) return null;
+  const ctx = canvas.getContext("2d");
+  let raf = 0, running = true, W = 0, H = 0, last = 0, spawnAcc = 0;
+  const rockets = [], sparks = [];
+  const COLORS = ["#ff9eb3", "#ffd17a", "#9ee6c4", "#8ec5ff", "#c5a3ff", "#ff9ed6", "#7ee787"];
+  const rand = (a, b) => a + Math.random() * (b - a);
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = r.width; H = r.height;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  const ro = new ResizeObserver(resize); ro.observe(canvas);
+  function launch() {
+    rockets.push({ x: rand(W * .2, W * .8), y: H, vx: rand(-.4, .4), vy: rand(-7.5, -6), color: COLORS[(Math.random() * COLORS.length) | 0], ty: rand(H * .12, H * .5) });
+  }
+  function burst(x, y, color) {
+    const n = 26 + (Math.random() * 18 | 0);
+    for (let i = 0; i < n; i++) {
+      const a = (Math.PI * 2 * i) / n, sp = rand(1.2, 3.6);
+      sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, color, size: rand(1.4, 2.6) });
+    }
+  }
+  function frame(t) {
+    if (!running) return;
+    // 速率降为 30%：把有效时间步整体乘 0.3，所有位移/重力/衰减/生成节奏同步放慢
+    const dt = (Math.min((t - last) || 16, 40) / 16) * 0.3; last = t;
+    ctx.clearRect(0, 0, W, H);
+    spawnAcc += dt;
+    if (spawnAcc > 26 && rockets.length < 5) { launch(); spawnAcc = 0; }
+    for (let i = rockets.length - 1; i >= 0; i--) {
+      const r = rockets[i]; r.x += r.vx * dt; r.y += r.vy * dt; r.vy += .06 * dt;
+      ctx.globalAlpha = 1; ctx.fillStyle = r.color;
+      ctx.beginPath(); ctx.arc(r.x, r.y, 2.2, 0, 7); ctx.fill();
+      if (r.vy >= -1 || r.y <= r.ty) { burst(r.x, r.y, r.color); rockets.splice(i, 1); }
+    }
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i]; s.x += s.vx * dt; s.y += s.vy * dt; s.vy += .04 * dt; s.vx *= .985; s.life -= .012 * dt;
+      if (s.life <= 0) { sparks.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, s.life); ctx.fillStyle = s.color;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    raf = requestAnimationFrame(frame);
+  }
+  launch();
+  raf = requestAnimationFrame(frame);
+  return { stop() { running = false; cancelAnimationFrame(raf); ro.disconnect(); } };
+}
+
+// 关于弹窗：版本 / GitHub 链接 / 本地版本日志 + （有新版时）新版日志与更新提示 + 烟花背景
+function showAbout() {
+  const ver = (typeof window.AILOG_VERSION !== "undefined" && window.AILOG_VERSION) || {};
+  const repo = ver.repo || "https://github.com/icloudsheep/claude-skills";
+  const local = ver.version || "";
+  // 由 repo 推导 releases API
+  const m = repo.match(/github\.com\/([^/]+)\/([^/]+)/);
+  const apiBase = m ? `https://api.github.com/repos/${m[1]}/${m[2]}/releases` : null;
+  const H = { Accept: "application/vnd.github+json" };
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal about" role="dialog" aria-modal="true">
+      <canvas class="fireworks"></canvas>
+      <div class="about-body">
+        <div class="about-banner" id="about-banner" hidden></div>
+        <div class="modal-title">AI 工作日志</div>
+        <div class="about-ver">版本 <b>${esc(local || "未知")}</b></div>
+        <a class="about-repo" href="${esc(repo)}" target="_blank" rel="noopener">${esc(repo.replace(/^https?:\/\//, ""))}</a>
+        <div class="about-log-label">版本日志</div>
+        <div class="acc" id="about-acc">
+          <div class="acc-item" data-key="local">
+            <div class="acc-head"><span class="acc-arrow">▸</span><span class="acc-title">当前版本 ${esc(local || "未知")}</span></div>
+            <div class="acc-body"><div class="about-log md" id="about-log-local">正在从 GitHub 获取…</div></div>
+          </div>
+          <div class="acc-item" id="about-acc-latest" hidden data-key="latest">
+            <div class="acc-head"><span class="acc-arrow">▸</span><span class="acc-title about-new-label">🎉 新版本</span></div>
+            <div class="acc-body"><div class="about-log md" id="about-log-latest"></div></div>
+          </div>
+        </div>
+        <div class="about-copy">Copyright © 2026 UniEver Studio. All rights reserved.</div>
+        <div class="modal-actions">
+          <button class="modal-btn ok">关闭</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  lockScroll();
+  requestAnimationFrame(() => overlay.classList.add("on"));
+
+  const fw = startFireworks(overlay.querySelector(".fireworks"));
+  let done = false;
+  const close = () => {
+    if (done) return; done = true;
+    fw && fw.stop();
+    overlay.classList.remove("on");
+    document.removeEventListener("keydown", onKey, true);
+    setTimeout(() => { overlay.remove(); unlockScroll(); }, 300);
+  };
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); close(); } };
+  document.addEventListener("keydown", onKey, true);
+  overlay.querySelector(".ok").onclick = close;
+  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+
+  // 手风琴：max-height 设为真实内容高度（封顶 60vh），展开/收缩走同一段距离、速度对称。
+  const CAP = () => Math.round(window.innerHeight * 0.6);
+  function setAccItem(item, open) {
+    const body = item.querySelector(".acc-body");
+    if (open) {
+      item.classList.add("open");
+      const target = Math.min(body.scrollHeight, CAP());
+      body.style.maxHeight = target + "px";
+      // 展开动画结束后放开滚动 + 解除 max-height 限制以适应后续内容变化
+      const onEnd = (e) => {
+        if (e.propertyName !== "max-height") return;
+        body.removeEventListener("transitionend", onEnd);
+        if (item.classList.contains("open")) {
+          body.classList.toggle("scrollable", body.scrollHeight > CAP());
+          if (body.scrollHeight <= CAP()) body.style.maxHeight = "none";
+        }
+      };
+      body.addEventListener("transitionend", onEnd);
+    } else {
+      // 收缩：先把 auto/none 固定成当前像素高度，再下一帧过渡到 0，保证有动画起点
+      body.classList.remove("scrollable");
+      body.style.maxHeight = body.getBoundingClientRect().height + "px";
+      void body.offsetHeight;
+      requestAnimationFrame(() => { item.classList.remove("open"); body.style.maxHeight = "0px"; });
+    }
+  }
+  function openOnly(item) {
+    overlay.querySelectorAll(".acc-item").forEach((it) => { if (it !== item) setAccItem(it, false); });
+    setAccItem(item, true);
+  }
+  overlay.querySelectorAll(".acc-head").forEach((h) => {
+    h.onclick = () => {
+      const item = h.parentElement;
+      if (item.classList.contains("open")) setAccItem(item, false);
+      else openOnly(item);
+    };
+  });
+  // 初始：默认展开「当前版本」项（内容到位后再设高度）
+  requestAnimationFrame(() => { const init = overlay.querySelector('.acc-item[data-key="local"]'); if (init) setAccItem(init, true); });
+
+  const localEl = overlay.querySelector("#about-log-local");
+  const renderRel = (rel) => {
+    const body = (rel.body || "").trim();
+    const tag = rel.tag_name ? `<div class="about-tag">${esc(rel.name || rel.tag_name)}</div>` : "";
+    return tag + (body ? renderMd(body) : "（该 release 暂无版本日志）");
+  };
+  if (!apiBase) { localEl.textContent = "无法解析仓库地址。"; return; }
+  // 内容异步到位后，若该项已展开则重算高度（max-height 跟上新内容）
+  const refreshAcc = (item) => {
+    if (!item.classList.contains("open")) return;
+    const body = item.querySelector(".acc-body");
+    const target = Math.min(body.scrollHeight, CAP());
+    body.classList.toggle("scrollable", body.scrollHeight > CAP());
+    body.style.maxHeight = body.scrollHeight > CAP() ? target + "px" : "none";
+  };
+
+  // 1) 本地版本对应 tag 的日志
+  fetch(`${apiBase}/tags/${encodeURIComponent(local)}`, { cache: "no-store", headers: H })
+    .then((r) => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
+    .then((rel) => { localEl.innerHTML = renderRel(rel); })
+    .catch((e) => { localEl.innerHTML = `<span class="about-err">未找到本地版本 ${esc(local)} 的 release（${esc(String(e))}）</span>`; })
+    .finally(() => refreshAcc(overlay.querySelector('.acc-item[data-key="local"]')));
+
+  // 2) 最新版日志 + 更新提示：与本地比对，有新版才显示新版区与顶部提示条
+  fetch(`${apiBase}/latest`, { cache: "no-store", headers: H })
+    .then((r) => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
+    .then((rel) => {
+      const latest = rel.tag_name || "";
+      if (latest && latest !== local) {
+        const banner = overlay.querySelector("#about-banner");
+        banner.hidden = false;
+        banner.innerHTML = `发现新版本 <b>${esc(latest)}</b>（当前 ${esc(local)}），点击前往更新 →`;
+        banner.onclick = () => window.open(rel.html_url || repo, "_blank", "noopener");
+        // 显示新版手风琴项并默认展开它（收起当前版本），把更要紧的新版日志推到眼前
+        const latestItem = overlay.querySelector("#about-acc-latest");
+        latestItem.hidden = false;
+        latestItem.querySelector(".acc-title").textContent = "🎉 新版本 " + latest;
+        overlay.querySelector("#about-log-latest").innerHTML = renderRel(rel);
+        openOnly(latestItem);
+      }
+    })
+    .catch(() => {});
+}
+// 整页右键弹页面菜单；胶囊上的右键由 chip 自身的 oncontextmenu 处理（stopPropagation 区分）
+document.addEventListener("contextmenu", (e) => {
+  if (e.target.closest(".chip")) return;  // 胶囊交给 openChipMenu
+  if (e.target.closest("#stage .node")) return;  // 节点交给 openNodeMenu
+  e.preventDefault();
+  openPageMenu(e);
+});
+
+function closeChipMenu() {
+  const m = document.getElementById("ctxmenu");
+  if (m) m.remove();
+}
+// 关闭菜单：任意点击 / Esc / 滚动
+document.addEventListener("click", (e) => { if (!e.target.closest(".ctxmenu")) closeChipMenu(); }, true);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeChipMenu(); });
+window.addEventListener("scroll", closeChipMenu, { passive: true });
+
+// 模态打开期间锁定背景上下滚动（引用计数，支持多层模态叠加）。
+// 锁定时给 body 补一段 padding 抵消滚动条消失带来的横向跳动。解锁还原。
+// overflow 同时压到 html 与 body：本页 body 为 flex 列布局、视口滚动条多挂在 html 上，
+// 只锁 body 不一定生效，两者都锁才稳。
+let _scrollLocks = 0, _savedPadRight = "";
+function lockScroll() {
+  if (_scrollLocks++ === 0) {
+    // 只冻结文档滚动容器（标准模式下为 documentElement/html）的 overflow。
+    // 关键：不要给 body 设 overflow:hidden——body 是 min-height:100vh 的 flex 容器，
+    // 给它设 overflow 会生成新的 BFC，使 position:sticky 的吸顶头部失去滚动上下文而“消失”。
+    // 仅锁 html 既能冻结背景滚动、又保持 topbar 原地吸顶可见。
+    const sbw = window.innerWidth - document.documentElement.clientWidth;  // 滚动条宽度
+    _savedPadRight = document.documentElement.style.paddingRight;
+    if (sbw > 0) document.documentElement.style.paddingRight = sbw + "px";
+    document.documentElement.style.overflow = "hidden";
+  }
+}
+function unlockScroll() {
+  if (_scrollLocks > 0 && --_scrollLocks === 0) {
+    document.documentElement.style.overflow = "";
+    document.documentElement.style.paddingRight = _savedPadRight;
+  }
+}
+
+// 自定义居中模态输入框：背景黑化遮罩 + 磨砂半透明卡片 + 动画展开。
+// 返回 Promise<string|null>：确定 → 输入值（已 trim）；取消 / 关闭 → null。
+function promptModal({ title, desc, value = "", placeholder = "", okText = "确定", cancelText = "取消" }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-title">${title}</div>
+        ${desc ? `<div class="modal-desc">${desc}</div>` : ""}
+        <input class="modal-input" type="text" placeholder="${esc(placeholder)}" />
+        <div class="modal-actions">
+          <button class="modal-btn cancel">${esc(cancelText)}</button>
+          <button class="modal-btn ok">${esc(okText)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    lockScroll();
+    const input = overlay.querySelector(".modal-input");
+    input.value = value;
+    requestAnimationFrame(() => overlay.classList.add("on"));
+    setTimeout(() => { input.focus(); input.select(); }, 60);
+
+    let done = false;
+    const close = (val) => {
+      if (done) return; done = true;
+      overlay.classList.remove("on");
+      document.removeEventListener("keydown", onKey, true);
+      setTimeout(() => { overlay.remove(); unlockScroll(); }, 260);   // 等退出动画
+      resolve(val);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); close(null); }
+      else if (e.key === "Enter") { e.preventDefault(); close(input.value.trim()); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    overlay.querySelector(".ok").onclick = () => close(input.value.trim());
+    overlay.querySelector(".cancel").onclick = () => close(null);
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(null); });
+  });
+}
+
+// 可复制的 --rename 命令（便于永久固化到 aliases.js）
+const renameCmd = (id, alias) => `python3 <skill>/scripts/ai_logger.py --rename "${id}" "${alias}"`;
+
+// 条目编辑模态：标题（单行文本）+ 正文（markdown 源码多行框）。
+// 返回 Promise<{title, summary}|null>：确定 → 改后的值；取消 / 关闭 → null。
+function editModal({ title = "", summary = "" }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal edit" role="dialog" aria-modal="true">
+        <div class="modal-title">编辑日志</div>
+        <div class="modal-desc">正文为 <b>Markdown 源码</b>（支持 mermaid 代码块与 $LaTeX$ 公式）· ⌘/Ctrl+Enter 保存</div>
+        <label class="edit-label">标题</label>
+        <input class="modal-input edit-title" type="text" placeholder="日志标题（留空则显示会话名）" />
+        <label class="edit-label">正文（Markdown）</label>
+        <textarea class="modal-input edit-body" spellcheck="false" placeholder="在此编辑 Markdown 源码…"></textarea>
+        <div class="modal-actions">
+          <button class="modal-btn cancel">取消</button>
+          <button class="modal-btn ok">保存</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    lockScroll();
+    const tEl = overlay.querySelector(".edit-title"), bEl = overlay.querySelector(".edit-body");
+    tEl.value = title; bEl.value = summary;
+    requestAnimationFrame(() => overlay.classList.add("on"));
+    setTimeout(() => { bEl.focus(); }, 60);
+
+    let done = false;
+    const close = (val) => {
+      if (done) return; done = true;
+      overlay.classList.remove("on");
+      document.removeEventListener("keydown", onKey, true);
+      setTimeout(() => { overlay.remove(); unlockScroll(); }, 260);
+      resolve(val);
+    };
+    const submit = () => close({ title: tEl.value.trim(), summary: bEl.value });
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); close(null); }
+      else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    overlay.querySelector(".ok").onclick = submit;
+    overlay.querySelector(".cancel").onclick = () => close(null);
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(null); });
+  });
+}
+
+// 编辑条目：弹源码编辑框 → 写 localStorage 覆盖层即时生效，控制台打印落盘命令。
+// 只把「与原值不同」的字段写入覆盖层，保持 patch 最小。
+async function editEntry(e) {
+  const cur = effectiveEntry(e);
+  const res = await editModal({ title: cur.title || "", summary: cur.summary || "" });
+  if (res === null) return;
+  const patch = {}, cmdFields = {};
+  if (res.title !== (e.title || "")) { patch.title = res.title; cmdFields.title = res.title; }
+  if (res.summary !== (e.summary || "")) { patch.summary = res.summary; cmdFields.summary = res.summary; }
+  if (!Object.keys(patch).length) { showToast("内容未变更", { title: "编辑" }); return; }
+  saveEdit(entryKey(e), patch);
+  console.log(
+    `已即时生效（本地）。如需永久写回 data.json（换设备/清缓存仍在），可运行：\n  ${editCmd(e, cmdFields)}`
+  );
+  // 原地更新（零重建）：编辑只改当前条的标题/正文，节点数量与位置不变——
+  // 故无需 rebuildAll() 推倒重建，只刷新「内存条目 + 当前详情面板 + 该节点气泡」三处即可，
+  // 详情面板不关闭、节点不重放入场动画、连接线不抖动，体验连续。
+  applyEditInPlace(e, patch);
+  showToast("已保存修改（本地即时生效）", { title: "编辑" });
+}
+
+// 把一条编辑就地反映到 UI：内存 ENTRIES、当前详情面板标题/正文、对应节点的悬停气泡。
+function applyEditInPlace(e, patch) {
+  // 1) 同步内存条目（select 直接读 ENTRIES[i].title/summary，不更新会导致再次打开显示旧值）
+  const idx = ENTRIES.findIndex((x) => x === e || (x.id === e.id && x.seq === e.seq));
+  const ent = idx >= 0 ? ENTRIES[idx] : null;
+  if (ent) {
+    if ("title" in patch) ent.title = patch.title;
+    if ("summary" in patch) ent.summary = patch.summary;
+  }
+  // 2) 若当前详情面板正展示这一条，原地刷新标题与正文
+  if (ent && ACTIVE && +ACTIVE.dataset.i === idx) {
+    const wrap = document.getElementById("detailwrap");
+    if ("title" in patch) {
+      const titleEl = wrap.querySelector(".d-title");
+      if (titleEl) titleEl.textContent = patch.title ? patch.title : autoName(META[ent.id]);
+    }
+    if ("summary" in patch) {
+      const sumEl = wrap.querySelector(".d-sum");
+      if (sumEl) {
+        sumEl.innerHTML = renderMd(ent.summary);
+        renderMermaid(sumEl);
+        renderMath(sumEl);
+      }
+    }
+  }
+  // 3) 更新该节点的悬停气泡文案（标题变了，tip 跟着变）
+  if (ent && "title" in patch) {
+    const node = document.querySelector(`#stage .node[data-seq="${ent.seq}"]`);
+    if (node) node.dataset.tip = patch.title ? patch.title : autoName(META[ent.id]);
+  }
+}
+
+// 删除条目：二次确认 → 写覆盖层 deleted 标记，平滑移除节点（局部更新，非整页重建）。
+async function deleteEntry(e) {
+  const ok = await confirmModal({
+    title: "删除这条日志？",
+    desc: `<b>${esc(effectiveEntry(e).title || autoName(META[e.id]))}</b><br>本地删除即时生效（可清除 localStorage 恢复）。永久删除需运行控制台打印的命令。`,
+    okText: "删除", danger: true,
+  });
+  if (!ok) return;
+  saveEdit(entryKey(e), { deleted: true });
+  console.log(`已本地删除。如需永久从 data.json 移除（换设备/清缓存仍生效），可运行：\n  ${deleteCmd(e)}`);
+  closeDetail();
+  removeEntryInPlace(e);
+  showToast("已删除（本地即时生效）", { title: "删除" });
+}
+
+// 平滑删除一条：被删节点淡出，其后所有节点上移补位，泳道线/stage 高度/胶囊计数/页脚随之更新。
+// 复杂边界（删空、某会话被删光需移除胶囊列）回退 rebuildAll() 兜底，保证一致性优先于动画。
+function removeEntryInPlace(e) {
+  const idx = ENTRIES.findIndex((x) => x === e || (x.id === e.id && x.seq === e.seq));
+  if (idx < 0) { rebuildAll(); return; }
+  const victim = ENTRIES[idx];
+  const sess = META[victim.id];
+  ENTRIES.splice(idx, 1);
+  // 边界回退：全删空、或被删条所属会话已无任何条目（需移除其胶囊与泳道列）
+  const sessionEmptied = !ENTRIES.some((x) => x.id === victim.id);
+  if (!ENTRIES.length || sessionEmptied) { rebuildAll(); return; }
+  if (sess) sess.count -= 1;
+
+  const stage = document.getElementById("stage");
+  const node = stage && stage.querySelector(`.node[data-seq="${victim.seq}"]`);
+  const finish = () => {
+    if (node) node.remove();
+    repositionNodesAfterDelete();
+  };
+  if (node) {
+    // 被删节点淡出缩小，过渡结束后移除并重排其余节点
+    node.style.transition = "opacity .28s ease, transform .28s ease";
+    node.style.opacity = "0";
+    node.style.transform = "translate(-50%, -50%) scale(.4)";
+    let done = false;
+    const onEnd = () => { if (done) return; done = true; node.removeEventListener("transitionend", onEnd); finish(); };
+    node.addEventListener("transitionend", onEnd);
+    setTimeout(onEnd, 360);  // 兜底
+  } else {
+    finish();
+  }
+  // 胶囊计数与页脚即时更新（不等动画）
+  refreshChipCounts();
+  renderFooter();
+}
+
+// 删除后：剩余节点按新顺序平移到正确行、更新 data-i/序号徽章，泳道线与 stage 高度收缩。
+function repositionNodesAfterDelete() {
+  const stage = document.getElementById("stage"), lane0 = document.getElementById("lane");
+  if (!stage) return;
+  const nodes = Array.from(stage.querySelectorAll(".node"));
+  // 按当前 top 排序即为视觉顺序；与 ENTRIES 一一对应重新编号
+  nodes.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top));
+  nodes.forEach((n, i) => {
+    n.style.transition = "top .42s cubic-bezier(.2,.8,.2,1)";
+    n.style.top = rowY(i) + "px";
+    n.dataset.i = i;
+  });
+  // 泳道竖线：每会话首末节点 y 重算
+  const ns = "http://www.w3.org/2000/svg";
+  const stageH = rowY(ENTRIES.length - 1) + TOP + 30;
+  SESSIONS.forEach((s) => {
+    const idxs = ENTRIES.map((en, k) => en.id === s.id ? k : -1).filter((k) => k >= 0);
+    if (!idxs.length) return;
+    const y1 = rowY(idxs[0]), y2 = rowY(idxs[idxs.length - 1]);
+    stage.querySelectorAll(`.rail[data-sid="${cssEsc(s.id)}"]`).forEach((line) => {
+      line.style.transition = "all .42s cubic-bezier(.2,.8,.2,1)";
+      line.setAttribute("y1", y1); line.setAttribute("y2", y2);
+      line.style.setProperty("--len", Math.max(y2 - y1, 1));
+    });
+    stage.querySelectorAll(`.rail-ext[data-sid="${cssEsc(s.id)}"]`).forEach((ext) => {
+      ext.setAttribute("y2", stageH);
+    });
+  });
+  stage.style.transition = "height .42s cubic-bezier(.2,.8,.2,1)";
+  stage.style.height = stageH + "px";
+}
+
+// 删除/计数变化后刷新胶囊上的「×N」计数（不重建胶囊本身）
+function refreshChipCounts() {
+  document.querySelectorAll(".chip").forEach((c) => {
+    const s = META[c.dataset.sid]; if (!s) return;
+    const cnt = c.querySelector(".cnt");
+    if (cnt) cnt.textContent = "×" + s.count;
+  });
+}
+
+// 节点右键菜单：预览 / 编辑 / 删除。i 为条目索引，node 为节点元素。
+function openNodeMenu(ev, i, node) {
+  cancelNodeTip();
+  const e = ENTRIES[i], s = META[e.id];
+  const head = `<span class="emo">${e.emoji}</span>${esc(effectiveEntry(e).title || autoName(s))}`;
+  openMenu(ev, { head, items: [
+    { label: "👁️ 预览", act: () => previewEntry(e) },
+    { label: "✏️ 编辑", act: () => editEntry(e) },
+    { sep: true },
+    { label: "🗑️ 删除", act: () => deleteEntry(e) },
+  ] });
+}
+
+// 预览：复用编辑模态的外壳尺寸，但只读——渲染 markdown / mermaid / 公式，无输入框与保存。
+function previewEntry(e) {
+  const cur = effectiveEntry(e), s = META[e.id];
+  const title = cur.title || autoName(s);
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal edit preview" role="dialog" aria-modal="true">
+      <div class="modal-title">${esc(title)}</div>
+      <div class="preview-body md"></div>
+      <div class="modal-actions">
+        <button class="modal-btn ok">关闭</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  lockScroll();
+  const bodyEl = overlay.querySelector(".preview-body");
+  bodyEl.innerHTML = renderMd(cur.summary || "");
+  renderMermaid(bodyEl);   // 渲染预览里的 mermaid 图
+  renderMath(bodyEl);      // 渲染预览里的 LaTeX 公式
+  requestAnimationFrame(() => overlay.classList.add("on"));
+
+  let done = false;
+  const close = () => {
+    if (done) return; done = true;
+    overlay.classList.remove("on");
+    document.removeEventListener("keydown", onKey, true);
+    setTimeout(() => { overlay.remove(); unlockScroll(); }, 260);
+  };
+  const onKey = (ev2) => { if (ev2.key === "Escape") { ev2.preventDefault(); close(); } };
+  document.addEventListener("keydown", onKey, true);
+  overlay.querySelector(".ok").onclick = close;
+  overlay.addEventListener("mousedown", (ev2) => { if (ev2.target === overlay) close(); });
+}
+
+// 二次确认模态（复用 modal 样式）：返回 Promise<boolean>。danger=true 时确定键为红色。
+function confirmModal({ title, desc, okText = "确定", cancelText = "取消", danger = false }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-title">${esc(title)}</div>
+        ${desc ? `<div class="modal-desc">${desc}</div>` : ""}
+        <div class="modal-actions">
+          <button class="modal-btn cancel">${esc(cancelText)}</button>
+          <button class="modal-btn ok${danger ? " danger" : ""}">${esc(okText)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    lockScroll();
+    requestAnimationFrame(() => overlay.classList.add("on"));
+    let done = false;
+    const close = (val) => {
+      if (done) return; done = true;
+      overlay.classList.remove("on");
+      document.removeEventListener("keydown", onKey, true);
+      setTimeout(() => { overlay.remove(); unlockScroll(); }, 260);
+      resolve(val);
+    };
+    const onKey = (ev) => {
+      if (ev.key === "Escape") { ev.preventDefault(); close(false); }
+      else if (ev.key === "Enter") { ev.preventDefault(); close(true); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    overlay.querySelector(".ok").onclick = () => close(true);
+    overlay.querySelector(".cancel").onclick = () => close(false);
+    overlay.addEventListener("mousedown", (ev) => { if (ev.target === overlay) close(false); });
+  });
+}
+
+// 重命名：自定义模态输入 → 写 localStorage 即时生效（跨所有日期同源共享），
+// 并在控制台打印 --rename 命令用于永久固化（换设备/清缓存仍保留）。
+async function renameSession(s) {
+  const cur = aliasOf(s.id) || "";
+  const input = await promptModal({
+    title: "自定义会话名称",
+    desc: `会话 <b>${esc(autoName(s))}</b> · 留空则恢复自动代号`,
+    value: cur,
+    placeholder: "输入易记的名称，如「重构专项」",
+  });
+  if (input === null) return;            // 取消
+  const alias = input.trim();
+  saveLocalAlias(s.id, alias);
+  refreshNames();                        // 即时刷新所有展示位
+  if (ACTIVE) drawLink();
+  console.log(
+    alias
+      ? `已即时生效。如需永久保存（换设备/清缓存后仍在），可运行：\n  ${renameCmd(s.id, alias)}`
+      : `已清除自定义名。永久清除可运行：\n  ${renameCmd(s.id, "")}`
+  );
+  showToast(alias ? `已重命名为「${alias}」（本地即时生效）` : "已恢复自动代号", { title: "会话名称" });
+}
+
+// 别名变更后，原地刷新所有「会话名展示位」：胶囊 + 当前详情面板
+function refreshNames() {
+  document.querySelectorAll(".chip").forEach((c) => {
+    const s = META[c.dataset.sid]; if (!s) return;
+    const span = c.querySelector(".chip-name");
+    if (span) span.innerHTML = displayNameHtml(s);
+  });
+  document.querySelectorAll(".d-who").forEach((el) => {
+    const s = META[el.dataset.sid]; if (s) el.innerHTML = displayNameHtml(s);
+  });
+}
+
+// 多 toast 堆叠系统：右上角依序向下排布，进入/退出均有动画，移除后下方自动上移补位。
+// opts: { onClick, duration(ms, 0=不自动消失), type('info'|'err'), title }
+// 不传 title 时取默认标题；正文与标题分两行展示。
+function showToast(msg, opts) {
+  opts = opts || {};
+  let wrap = document.getElementById("toast-wrap");
+  if (!wrap) { wrap = document.createElement("div"); wrap.id = "toast-wrap"; document.body.appendChild(wrap); }
+  const t = document.createElement("div");
+  t.className = "toast" + (opts.type === "err" ? " err" : "") + (opts.onClick ? " clickable" : "");
+  const title = opts.title || (opts.type === "err" ? "出错了" : "提示");
+  t.innerHTML = `<div class="t-title">${esc(title)}</div><div class="t-body">${esc(msg)}</div>`;
+  wrap.appendChild(t);
+  // 强制 reflow 后加 .on 触发进入动画
+  void t.offsetWidth;
+  requestAnimationFrame(() => t.classList.add("on"));
+
+  const dismiss = () => {
+    if (t._dismissed) return; t._dismissed = true;
+    clearTimeout(t._timer);
+    t.classList.remove("on"); t.classList.add("out");
+    // 等高度压扁(补位)这条最长的过渡结束再移除，避免动画被截断
+    t.addEventListener("transitionend", (e) => { if (e.propertyName === "max-height") t.remove(); });
+    setTimeout(() => t.remove(), 1100);  // 兜底
+  };
+  if (opts.onClick) t.onclick = () => { opts.onClick(); dismiss(); };
+  const dur = opts.duration != null ? opts.duration : 5200;  // 默认时长（已较原 2.6s 翻倍）
+  if (dur > 0) t._timer = setTimeout(dismiss, dur);
+  return t;
+}
+
+// 启动时检查 GitHub 最新 release 是否比本地版本新；有则弹可点击 toast，点击跳转仓库。
+// api.github.com 返回 CORS 头 *，file:// 下也可 fetch。获取失败弹错误 toast。
+function checkUpdate() {
+  const ver = (typeof window.AILOG_VERSION !== "undefined" && window.AILOG_VERSION) || {};
+  if (!ver.version) return;
+  const repo = ver.repo || "https://github.com/icloudsheep/claude-skills";
+  const m = repo.match(/github\.com\/([^/]+)\/([^/]+)/);
+  if (!m) return;
+  fetch(`https://api.github.com/repos/${m[1]}/${m[2]}/releases/latest`,
+        { cache: "no-store", headers: { Accept: "application/vnd.github+json" } })
+    .then((r) => r.ok ? r.json() : Promise.reject("HTTP " + r.status))
+    .then((rel) => {
+      const latest = rel.tag_name || "";
+      if (latest && latest !== ver.version) {
+        showToast(`新版本 ${latest}（当前 ${ver.version}），点击前往更新`,
+          { title: "🎉 发现更新", onClick: () => window.open(rel.html_url || repo, "_blank", "noopener"), duration: 10000 });
+      }
+    })
+    .catch((e) => {
+      showToast(`无法获取远程版本信息（${e}）`, { title: "⚠️ 检查更新失败", type: "err", duration: 8000 });
+    });
+}
+
+// 点击胶囊 → 切换该会话；隐藏后压缩其列、整体左移、左栏变窄（日志框随之变宽）
+function toggleSession(id, chip) {
+  const s = META[id]; s.hidden = !s.hidden;
+  chip.classList.toggle("off", s.hidden);
+  if (s.hidden && ACTIVE && ACTIVE.dataset.sid === id) closeDetail();
+  relayout();
+}
+
+// 仅对可见会话重排列号，节点/泳道线随之平移，左栏宽度收缩
+function relayout() {
+  let lane = 0;
+  SESSIONS.forEach((s) => { s.lane = s.hidden ? -1 : lane++; });
+  const visN = lane;
+
+  document.querySelectorAll(".node").forEach((n) => {
+    const s = META[n.dataset.sid];
+    n.style.display = s.hidden ? "none" : "";
+    if (!s.hidden) n.style.left = laneX(s.lane) + "px";
+  });
+  document.querySelectorAll(".rail, .rail-ext").forEach((r) => {
+    const s = META[r.dataset.sid];
+    r.style.display = s.hidden ? "none" : "";
+    if (!s.hidden) { const x = laneX(s.lane); r.setAttribute("x1", x); r.setAttribute("x2", x); }
+  });
+  const stageW = LANE_X0 + Math.max(visN, 1) * LANE_GAP + 24;
+  const stage = document.getElementById("stage"), lane0 = document.getElementById("lane");
+  stage.style.transition = lane0.style.transition = "width .9s cubic-bezier(.2,.8,.2,1)";
+  stage.style.width = stageW + "px";
+  lane0.style.width = (stageW + 14) + "px";
+  trackLink(1000);  // 列收缩平移动画(.9s)期间持续重算连线
+}
+
+function closeDetail() {
+  document.querySelectorAll(".node.active").forEach((n) => n.classList.remove("active"));
+  ACTIVE = null;
+  document.getElementById("detailwrap").innerHTML = '<div class="box empty">👈 点击左侧任一节点查看该条日志详情</div>';
+  document.getElementById("linkpath").classList.remove("on");
+}
+
+function select(i, node) {
+  if (ACTIVE === node) { closeDetail(); return; }
+  const e = ENTRIES[i], s = META[e.id], tail = e.id.split("-")[1] || "";
+  document.querySelectorAll(".node.active").forEach((n) => n.classList.remove("active"));
+  node.classList.add("active"); ACTIVE = node;
+
+  const f = (k, v, cls) => v ? `<div class="f ${cls||""}"><div class="k">${k}</div><div class="v ${cls||""}">${esc(v)}</div></div>` : "";
+  const box = (title, inner, d) => `<div class="box" style="--c:${s.color}; animation-delay:${d}ms">
+    ${title ? `<div class="bt">${title}</div>` : ""}${inner}</div>`;
+
+  // 跨午夜接续标注：本会话前一部分在上一日
+  const co = e.carryover;
+  const carryNote = co
+    ? `<div class="carry">🌙 接续自 <b>${esc(co.prev_date)}</b>（本会话前一部分在上一日，止于 ${esc(co.prev_end)}）</div>`
+    : "";
+
+  // 首框：标题单独拎出置顶（无标题时回退为会话名），其下会话头 + 跨日标注
+  const titleText = e.title ? esc(e.title) : autoName(s);
+  const headInner =
+    `<div class="d-actions"><button class="d-act" data-act="edit" title="编辑标题与正文">✏️ 编辑</button>`
+    + `<button class="d-act danger" data-act="delete" title="删除本条日志">🗑️ 删除</button></div>`
+    + `<div class="d-title">${titleText}</div>`
+    + `<div class="d-head"><span class="d-emo">${e.emoji}</span><span class="d-who" data-sid="${esc(s.id)}">${displayNameHtml(s)}</span><span class="d-seq">#${e.seq != null ? e.seq : i + 1}</span></div>`
+    + carryNote;
+
+  // token / 轮数卡片（分段增量；transcript 不可用时该字段缺失，整框省略）
+  const u = e.usage;
+  const tokenBox = u
+    ? box("📊 本段消耗", `<div class="metrics">`
+        + f("输入 tokens", fmtTok(u.input))
+        + f("输出 tokens", fmtTok(u.output))
+        + f("缓存读取", fmtTok(u.cache_read))
+        + (u.cache_write ? f("缓存写入", fmtTok(u.cache_write)) : "")
+        + f("对话轮数", u.turns != null ? String(u.turns) : "")
+        + f("API 调用", u.api_calls != null ? String(u.api_calls) : "")
+        + `</div>`, 360)
+    : "";
+
+  // 拆成多个磨砂玻璃框，纵向堆叠（首框：标题置顶 + 会话头 + 跨日标注）
+  const html =
+    box("", headInner, 0)
+    + box("📝 日志内容", `<div class="sumbox"><div class="d-sum md">${renderMd(e.summary)}</div></div>`, 120)
+    + box("⏱ 时间", `<div class="metrics">${f("起", fmtAt(e.start, e.carryover ? e.carryover.prev_date : DATA.date), "wide")}${f("止", fmtAt(e.end, DATA.date), "wide")}${f("时长", fmtDur(e.duration))}</div>`, 240)
+    + tokenBox
+    + box("🌿 Git 分支", e.branch ? `<div class="v mono">${esc(e.branch)}</div>` : `<div class="v" style="color:var(--dim)">（不可用）</div>`, u ? 480 : 360)
+    + box("🤖 模型", `<div class="v mono">${esc(e.model) || '<span style="color:var(--dim)">未知</span>'}</div>`, u ? 600 : 480)
+    + box("📁 项目 / 目录", `<div class="metrics">${f("项目", e.project)}${f("工作目录", e.cwd, "wide")}</div>`, u ? 720 : 600);
+
+  document.getElementById("detailwrap").innerHTML = html;
+  renderMermaid(document.getElementById("detailwrap"));  // 渲染本条日志内的 mermaid 图
+  renderMath(document.getElementById("detailwrap"));      // 渲染本条日志内的 LaTeX 公式
+  // 绑定编辑/删除操作（操作对原始条目 e，落盘命令按 date#seq 定位）
+  const wrap = document.getElementById("detailwrap");
+  const btnEdit = wrap.querySelector('.d-act[data-act="edit"]');
+  const btnDel = wrap.querySelector('.d-act[data-act="delete"]');
+  if (btnEdit) btnEdit.onclick = () => editEntry(e);
+  if (btnDel) btnDel.onclick = () => deleteEntry(e);
+  trackLink(1000);  // 详情框 fadein + 节点 pop 动画期间持续重算连线，避免停在旧位置
+}
+
+// 节点悬停气泡：单例 body 级元素，按节点屏幕位置摆在其正上方（夹取进视口避免溢出）。
+// 悬停需停留 ~0.5s 才弹出（防止划过时频繁闪现）；移出或滚动立即取消并隐藏。
+let _nodeTipEl = null, _nodeTipTimer = 0;
+function scheduleNodeTip(node) {
+  clearTimeout(_nodeTipTimer);
+  _nodeTipTimer = setTimeout(() => showNodeTip(node), 500);
+}
+function cancelNodeTip() {
+  clearTimeout(_nodeTipTimer);
+  hideNodeTip();
+}
+function showNodeTip(node) {
+  const text = node.dataset.tip || "";
+  if (!text) return;
+  if (!_nodeTipEl) {
+    _nodeTipEl = document.createElement("div");
+    _nodeTipEl.className = "node-tip";
+    document.body.appendChild(_nodeTipEl);
+  }
+  const tip = _nodeTipEl;
+  tip.textContent = text;
+  const r = node.getBoundingClientRect();
+  // 先显示以便测量自身尺寸，再夹取定位
+  tip.style.left = "0px"; tip.style.top = "0px";
+  tip.classList.add("on");
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let x = r.left + r.width / 2 - tw / 2;
+  let y = r.top - th - 10;                       // 默认置于节点上方
+  if (y < 6) y = r.bottom + 10;                  // 顶部空间不足则翻到下方
+  x = Math.max(6, Math.min(x, window.innerWidth - tw - 6));
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+function hideNodeTip() {
+  if (_nodeTipEl) _nodeTipEl.classList.remove("on");
+}
+
+function drawLink() {
+  const path = document.getElementById("linkpath");
+  if (!ACTIVE) { path.classList.remove("on"); return; }
+  const wrap = document.getElementById("detailwrap");
+  const a = ACTIVE.getBoundingClientRect(), b = wrap.getBoundingClientRect();
+  const x1 = a.right, y1 = a.top + a.height / 2, x2 = b.left, y2 = b.top + 30, mx = x1 + (x2 - x1) * 0.5;
+  path.setAttribute("d", `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`);
+  path.setAttribute("stroke", ACTIVE.style.getPropertyValue("--c"));
+  path.classList.add("on");
+}
+// rAF 节流：滚动/resize 时每帧最多重算一次连接线，避免高频 getBoundingClientRect 触发强制重排
+let _linkRaf = 0;
+function scheduleDrawLink() {
+  if (_linkRaf) return;
+  _linkRaf = requestAnimationFrame(() => { _linkRaf = 0; drawLink(); });
+}
+// 选中/重排后，详情框 fadein(~.84s) 与节点 pop/translate(~.9s) 持续改变端点坐标，
+// 但 drawLink 仅在 scroll/resize 触发，动画期间连线会停在旧位置——玻璃主题尤甚（还叠加
+// 背景流动重排）。这里在动画时长内每帧重算一次，让连线实时贴合两端，动画结束即停。
+let _trackUntil = 0, _trackRaf = 0;
+function trackLink(ms = 1000) {
+  _trackUntil = Math.max(_trackUntil, performance.now() + ms);
+  if (_trackRaf) return;
+  const step = () => {
+    drawLink();
+    if (performance.now() < _trackUntil && ACTIVE) { _trackRaf = requestAnimationFrame(step); }
+    else { _trackRaf = 0; }
+  };
+  _trackRaf = requestAnimationFrame(step);
+}
+
+function renderFooter() {
+  const fo = document.getElementById("footer");
+  const ver = (typeof window.AILOG_VERSION !== "undefined" && window.AILOG_VERSION) || {};
+  const repo = ver.repo || "https://github.com/icloudsheep/claude-skills";
+  const verLine = ver.version
+    ? `<div class="f-row">版本 <span class="span f-ver">${esc(ver.version)}</span></div>` : "";
+  const repoLine = `<div class="f-row"><a href="${esc(repo)}" target="_blank" rel="noopener">GitHub 仓库</a></div>`;
+  const copyLine = `<div class="f-row f-copy">Copyright © 2026 UniEver Studio. All rights reserved.</div>`;
+
+  if (!ENTRIES.length) {
+    fo.innerHTML = `<div class="f-row">AI 工作日志</div>${verLine}${repoLine}${copyLine}`;
+    return;
+  }
+  const firstE = ENTRIES[0], lastE = ENTRIES[ENTRIES.length - 1];
+  const first = firstE.start, last = lastE.end;
+  // 首条若为跨午夜接续，其 start 属于前一天；据此取正确日期，避免跨度显示出现 end 早于 start
+  const firstDate = firstE.carryover ? firstE.carryover.prev_date : DATA.date;
+  // 总时长 = 显示的跨度两端（带日期）之真实日历差，与上方跨度一致；
+  // 不累加各条 duration（多会话区间重叠会重复计、跨午夜条目 duration 巨大会污染）
+  const toMs = (date, time) => Date.parse(`${date}T${time}`);
+  const span = toMs(firstDate, first), end = toMs(DATA.date, last);
+  const totalSec = (isFinite(span) && isFinite(end) && end >= span) ? Math.round((end - span) / 1000) : 0;
+  fo.innerHTML =
+    `<div class="f-row">AI 工作日志 · 点击节点看详情 · 点击胶囊切换会话</div>`
+    + `<div class="f-row">跨度 <span class="span">${fmtAt(first, firstDate)} → ${fmtAt(last, DATA.date)}</span></div>`
+    + `<div class="f-row">共 <span class="span">${fmtDur(totalSec)}</span> · ${ENTRIES.length} 条</div>`
+    + verLine + repoLine + copyLine;
+}
+
+// 测量吸顶实际高度，写入 --topbar-h，避免右侧/节点滚动时与磨砂玻璃碰撞
+function syncTopbar() {
+  const h = document.getElementById("topbar").offsetHeight;
+  document.documentElement.style.setProperty("--topbar-h", h + "px");
+}
+// ── 全文搜索 ───────────────────────────────────────────────────
+// 页面右上角常驻一个搜索图标（与大标题平行、上/右边距相等），点击展开搜索框；
+// 对当前 ENTRIES（已应用编辑覆盖层）的所有文字字段做大小写不敏感匹配；
+// 结果以列表浮层给出，每项含节点主信息 + 命中文本片段（高亮关键词）；
+// 点击结果在主页展开该节点（select），并滚动到可视区、短暂高亮闪烁。
+
+// 参与搜索的字段及其中文名（用于结果里标注命中位置）
+const SEARCH_FIELDS = [
+  ["title", "标题"], ["summary", "正文"], ["project", "项目"],
+  ["branch", "分支"], ["model", "模型"], ["cwd", "目录"],
+];
+
+// 挂载搜索控件——固定在 body 右上角，只挂一次（build 重建 topbar 不影响它）。
+// 默认折叠为图标，点击展开输入框；再次点击图标或点击外部收起。
+function mountSearch() {
+  if (document.getElementById("search")) return;  // 已挂载，避免 rebuild 重复
+  const box = document.createElement("div");
+  box.className = "search"; box.id = "search";
+  box.innerHTML =
+    `<div class="search-bar">`
+    + `<button class="search-ico" title="搜索日志">🔍</button>`
+    + `<input class="search-input" type="text" placeholder="搜索标题、正文、项目、分支……" spellcheck="false" />`
+    + `<button class="search-clear" title="清空" hidden>✕</button>`
+    + `</div>`
+    + `<div class="search-results" hidden></div>`;
+  document.body.appendChild(box);
+
+  const ico = box.querySelector(".search-ico");
+  const input = box.querySelector(".search-input");
+  const clear = box.querySelector(".search-clear");
+  const results = box.querySelector(".search-results");
+
+  const closeResults = () => { results.hidden = true; results.innerHTML = ""; };
+  const expand = () => {
+    box.classList.add("open");
+    setTimeout(() => input.focus(), 60);
+    if (input.value.trim()) update();
+  };
+  const collapse = () => { box.classList.remove("open"); closeResults(); };
+
+  const update = () => {
+    const q = input.value.trim();
+    clear.hidden = !q;
+    if (!q) { closeResults(); return; }
+    runSearch(q, results);
+  };
+
+  ico.onclick = (e) => { e.stopPropagation(); box.classList.contains("open") ? collapse() : expand(); };
+  input.addEventListener("input", update);
+  clear.onclick = () => { input.value = ""; clear.hidden = true; closeResults(); input.focus(); };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { input.value = ""; clear.hidden = true; collapse(); }
+  });
+  // 点击控件外部：收起整个搜索框
+  document.addEventListener("click", (e) => { if (!box.contains(e.target)) collapse(); }, true);
+}
+
+// 执行搜索：遍历 ENTRIES 各字段，命中则记录字段名与命中片段；渲染结果列表。
+function runSearch(q, results) {
+  const ql = q.toLowerCase();
+  const hits = [];
+  ENTRIES.forEach((e, i) => {
+    const s = META[e.id];
+    const matched = [];  // {field, snippet}
+    for (const [key, label] of SEARCH_FIELDS) {
+      const val = e[key];
+      if (!val) continue;
+      const idx = String(val).toLowerCase().indexOf(ql);
+      if (idx >= 0) matched.push({ label, snippet: makeSnippet(String(val), idx, q.length) });
+    }
+    // 会话名（自动代号 + 别名）也参与匹配
+    const nm = (aliasOf(e.id) || "") + " " + autoName(s);
+    if (nm.toLowerCase().includes(ql)) matched.push({ label: "会话", snippet: esc(aliasOf(e.id) || autoName(s)) });
+    if (matched.length) hits.push({ i, e, s, matched });
+  });
+
+  if (!hits.length) {
+    results.hidden = false;
+    results.innerHTML = `<div class="search-empty">未找到包含「${esc(q)}」的日志</div>`;
+    return;
+  }
+  results.hidden = false;
+  results.innerHTML =
+    `<div class="search-count">${hits.length} 条匹配</div>`
+    + hits.map((h) => {
+        const title = h.e.title ? esc(h.e.title) : esc(autoName(h.s));
+        const fields = h.matched.map((m) =>
+          `<div class="sr-hit"><span class="sr-field">${m.label}</span>${m.snippet}</div>`).join("");
+        return `<div class="search-item" data-seq="${h.e.seq}" style="--c:${h.s.color}">`
+          + `<div class="sr-head"><span class="sr-emo">${h.e.emoji}</span>`
+          + `<span class="sr-title">${title}</span>`
+          + `<span class="sr-seq">#${h.e.seq}</span></div>`
+          + `<div class="sr-meta">${esc(displayNamePlain(h.s))} · ${esc(fmtAt(h.e.start, h.e.carryover ? h.e.carryover.prev_date : DATA.date))}</div>`
+          + fields
+          + `</div>`;
+      }).join("");
+
+  results.querySelectorAll(".search-item").forEach((el) => {
+    el.onclick = () => openSearchResult(+el.dataset.seq);
+  });
+}
+
+// 取命中位置周围一小段文本作为片段，关键词高亮；首尾按需加省略号。
+function makeSnippet(text, idx, qlen) {
+  const PAD = 30;
+  const start = Math.max(0, idx - PAD);
+  const end = Math.min(text.length, idx + qlen + PAD);
+  const pre = (start > 0 ? "…" : "") + text.slice(start, idx);
+  const mid = text.slice(idx, idx + qlen);
+  const post = text.slice(idx + qlen, end) + (end < text.length ? "…" : "");
+  // 片段里去掉换行让其单行展示
+  const clean = (s) => esc(s.replace(/\s+/g, " "));
+  return clean(pre) + `<mark>${clean(mid)}</mark>` + clean(post);
+}
+
+// 会话名纯文本（无 HTML），用于结果元信息行
+function displayNamePlain(s) {
+  const alias = aliasOf(s.id);
+  return alias ? `${alias}(${autoName(s)})` : autoName(s);
+}
+
+// 点击搜索结果：在主页展开对应节点（按 seq 定位节点 → select），滚动到可视区并闪烁高亮。
+function openSearchResult(seq) {
+  const node = document.querySelector(`#stage .node[data-seq="${seq}"]`);
+  if (!node) return;
+  // 若该节点所属会话被隐藏，先显示它
+  const s = META[node.dataset.sid];
+  if (s && s.hidden) {
+    const chip = document.querySelector(`.chip[data-sid="${cssEsc(node.dataset.sid)}"]`);
+    if (chip) toggleSession(node.dataset.sid, chip);
+  }
+  select(+node.dataset.i, node);
+  // 滚动左栏让节点可见 + 闪烁
+  node.scrollIntoView({ behavior: "smooth", block: "center" });
+  node.classList.remove("flash"); void node.offsetWidth; node.classList.add("flash");
+}
+
+window.addEventListener("scroll", () => { scheduleDrawLink(); cancelNodeTip(); }, { passive: true });
+window.addEventListener("resize", () => { syncTopbar(); scheduleDrawLink(); });
+
+applyTheme();
+build();
+mountSearch();
+syncTopbar();
+checkUpdate();
+</script>
+</body>
+</html>

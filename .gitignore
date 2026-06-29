@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+
+# 数据库与运行时产物
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+ailog.db*
+
+# 本地配置 / 密钥
+.env
+*.local
+
+# 重发队列等本地状态
+.ailog-queue/
+
+# macOS / 编辑器
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Node（前端若引入工具链）
+node_modules/
+
+# 测试缓存
+.pytest_cache/
+.coverage
