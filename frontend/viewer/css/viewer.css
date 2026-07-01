@@ -18,15 +18,23 @@
   background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
   transition: transform .25s, box-shadow .3s, opacity .25s, filter .25s; }
 .cap:hover { transform: translateY(-2px); }
-.cap.off { opacity: .5; filter: grayscale(.85); box-shadow: inset 0 2px 6px rgba(40,50,90,.25); }
+
+/* 三种状态 */
+.cap.on { opacity: 1; }
+.cap.off { opacity: .48; filter: grayscale(.8); }
+.cap.grey { opacity: .14; filter: grayscale(1); pointer-events: none !important; }
+
 .cap .emo { font-size: 14px; }
-/* 会话胶囊：左侧实心点用会话色 + 选中态外发光 */
+/* 会话胶囊：左侧实心点用会话色 + on 态外发光 */
 .sess-cap { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 55%, transparent), var(--lg-inset); }
 .sess-cap.off { box-shadow: inset 0 2px 6px rgba(40,50,90,.25); }
+.sess-cap.on { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 70%, transparent),
+    0 0 18px color-mix(in srgb, var(--c) 40%, transparent), var(--lg-inset); }
 .cap-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
-.cap.off .cap-dot { box-shadow: none; }
-/* 天胶囊：色块用渐变（当日会话色） */
-.cap-swatch { width: 14px; height: 14px; border-radius: 4px; }
+.cap.off .cap-dot, .cap.grey .cap-dot { box-shadow: none; }
+/* 天胶囊：色块用渐变（当日会话色）．on 态加色块外发光 */
+.cap-swatch { width: 21px; height: 7px; border-radius: 4px; }
+.day-cap.on .cap-swatch { box-shadow: 0 0 10px var(--day-c, #7884a0); }
 
 
 .stage .empty, .right .empty { color: var(--dim); padding: 40px 16px; text-align: center; }
@@ -51,8 +59,8 @@ html[data-mode="dark"] .f { background: rgba(200,215,255,.07); }
   background: var(--lg-bg); font: inherit; font-size: 13px; color: var(--txt); outline: none; box-shadow: var(--lg-inset); }
 #search-input:focus { border-color: #6ea8fe; box-shadow: 0 0 0 3px rgba(110,168,254,.2); }
 
-/* 搜索结果浮层（落在页头下方，避开 banner） */
-.search-results { position: fixed; top: calc(var(--topbar-h, 56px) + 10px); right: clamp(16px,4vw,48px); z-index: 40;
+/* 搜索结果浮层：位于搜索框正下方 */
+.search-results { position: fixed; z-index: 40;
   width: min(92vw, 460px); max-height: 70vh; overflow-y: auto; padding: 8px;
   background: var(--lg-bg); border: var(--lg-border); border-radius: 14px;
   backdrop-filter: blur(22px) saturate(185%); -webkit-backdrop-filter: blur(22px) saturate(185%);
@@ -68,14 +76,16 @@ html[data-mode="dark"] .f { background: rgba(200,215,255,.07); }
 mark { background: color-mix(in srgb, #ffd166 70%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 html[data-mode="dark"] mark { background: color-mix(in srgb, #ffd166 40%, transparent); }
 
-/* 日期纵向圆角色带：跨过所有泳道，覆盖该天所有行；低透明填充 + 清晰日期标签 */
-.day-band { position: absolute; left: 0; z-index: 0; border-radius: 14px; overflow: hidden;
-  display: flex; align-items: flex-start; }
-.day-band-fill { position: absolute; inset: 0; opacity: .12; }
-html[data-mode="dark"] .day-band-fill { opacity: .2; }
-.day-band-label { position: relative; font-size: 11px; font-weight: 650; color: var(--title-color);
-  background: var(--lg-bg); border: var(--lg-border); border-radius: 8px; padding: 2px 8px; margin: 6px;
-  font-variant-numeric: tabular-nums; }
+/* 日期标识：横跨整个泳道宽度的不透明圆角矩形，固定高度，位于两天交界处 */
+.day-band { position: absolute; left: 0; z-index: 1; height: 32px; border-radius: 10px; box-sizing: border-box;
+  display: flex; align-items: center; padding: 0 12px; white-space: nowrap;
+  background: var(--lg-bg); border: var(--lg-border);
+  backdrop-filter: blur(16px) saturate(185%); -webkit-backdrop-filter: blur(16px) saturate(185%);
+  box-shadow: 0 2px 10px -4px rgba(30,40,70,.3); }
+.day-band::before { content: ""; display: inline-block; width: 5px; height: 20px; border-radius: 3px;
+  background: var(--day-c, #7884a0); margin-right: 8px; flex: none; }
+.day-band-label { font-size: 15px; font-weight: 650; color: var(--title-color);
+  font-variant-numeric: tabular-nums; line-height: 1; }
 /* 节点/泳道线在色带之上 */
 #stage .node { z-index: 3; }
 svg.rails { z-index: 1; }

@@ -2,18 +2,18 @@
 
 ![Ailogy](static/banner.svg)
 
-把 AI 工作日志从「本地离线单文件」升级为「前后端服务」：CLI 带密钥上报，后端按用户隔离存储到 SQLite，网页以瀑布流呈现，可**按日期 / 按会话 / 忽略日期**三种视图无限下滑查看。
+AI 工作日志本地服务：CLI 写日志 → SQLite 存库 → 网页瀑布流查看，**纯个人使用，零鉴权**。
 
-> 本仓库脱胎于 [claude-skills 的 ai-log skill](https://github.com/icloudsheep/claude-skills)。原本的纯本地离线工具仍保留，本项目在其之上增加后端、数据库与密钥平台。
+> 本项目脱胎于 [claude-skills 的 ai-log skill](https://github.com/icloudsheep/claude-skills)。原本的纯本地离线工具仍保留，本项目在其之上增加后端、数据库与多设备聚合。
 
 ---
 
 ## 它能做什么
 
-- **CLI 双模式**：`ailog` 命令照常在本地生成离线 HTML，同时可带 API 密钥把日志上报后端；断网不影响本地，恢复后自动补发。
-- **瀑布流查看**：所有日志集中在数据库里，网页无限下滑，三种视图随心切换，支持 Markdown / Mermaid 图 / LaTeX 公式渲染、全文搜索。
-- **密钥平台**：用户注册登录后申请密钥，管理员审批发放。
-- **多用户隔离 + 公开分享**：默认只能看自己的；可逐范围（全部 / 某天 / 某会话）生成公开只读分享链接。
+- **本地写 + 在线汇聚**：`ailog` CLI 照常在本地生成离线 HTML；带 `--report` 时同时 POST 到本服务，多台设备的日志汇聚到一个库。
+- **泳道瀑布流**：会话为列、条目为节点的时间线视图，支持 Markdown / Mermaid 图 / LaTeX 公式渲染、全文搜索。
+- **按月 + 按设备筛选**：顶部月份选择器 + 设备选择器（全选 / 多选 / 单选），天/会话两级胶囊各自切显隐。
+- **编辑 / 删除 / 改色固化**：节点右键可预览、编辑、删除；会话可重命名、改主题色——编辑/删除/改色直接固化到 SQLite，重命名/选择器状态/主题存浏览器 localStorage。
 
 ---
 
@@ -23,27 +23,29 @@
 flowchart TB
     subgraph CLI["CLI ailog（双模式）"]
         C1["write_entry / edit / delete"] --> C2["本地离线渲染 index.html"]
-        C1 --> C3["带密钥 POST 上报"]
+        C1 -.->|"--report"| C3["POST /api/ingest/entries"]
     end
-    subgraph Browser["浏览器"]
-        P1["密钥平台：注册/登录/申请/审批"]
-        P2["瀑布流页面：静态壳 + 渲染 JS"]
+    subgraph Browser["浏览器（瀑布流）"]
+        P1["viewer：泳道 + 详情 + 搜索"]
+        P2["settings / about"]
     end
     subgraph Backend["FastAPI (uvicorn)"]
-        MW["鉴权层：API Key / Session / Share Token"]
-        CORE["ailog_core（代号/token/时间计算）"]
-        ST["静态资产：mermaid/katex/壳"]
+        R1["读：entries / sessions / timeline / search / devices"]
+        R2["写：ingest / 编辑 / 删除 / 改色 / prefs"]
+        CORE["ailog_core（会话代号 / 时间计算 / entry 模型）"]
+        ST["静态资产：mermaid / katex / 前端壳"]
     end
     DB[("SQLite 单文件")]
-    C3 -->|API Key| MW
-    P1 -->|Session Cookie| MW
-    P2 -->|Session 或 Share Token| MW
-    P2 -.->|加载壳与资产| ST
-    MW --> DB
-    MW --> CORE
+    C3 --> R2
+    P1 --> R1
+    P1 --> R2
+    P1 -.->|加载壳与资产| ST
+    R1 --> DB
+    R2 --> DB
+    R1 --> CORE
 ```
 
-核心取舍：**渲染留前端、后端只吐 JSON**。纯渲染逻辑（Markdown / Mermaid / KaTeX）在 CLI 离线模式与网页瀑布流两处复用；后端只做数据与鉴权。
+核心取舍：**渲染留前端、后端吐 JSON**。纯渲染逻辑（Markdown / Mermaid / KaTeX）在 CLI 离线模式与网页瀑布流两处复用；后端只做数据，无鉴权（本地 / 内网自用）。
 
 ---
 
@@ -57,7 +59,7 @@ flowchart TB
 git clone https://github.com/icloudsheep/Ailogy.git
 cd Ailogy
 python3 -m venv .venv
-.venv/bin/pip install -e .          # 安装后端 + CLI 及依赖
+.venv/bin/pip install -e .
 ```
 
 ### 2. 启动与运维
@@ -71,106 +73,114 @@ python3 -m venv .venv
 ./ailogy restart         # 重启
 ./ailogy stop            # 停止
 ./ailogy logs            # 跟踪日志
-
-# 管理员运维
-./ailogy review          # 交互式逐条审批待审的密钥申请（推荐）
-./ailogy apps            # 列出待审申请
-./ailogy approve <id> [备注]   # 批准并打印明文密钥
-./ailogy reject  <id> <理由>   # 拒绝
-./ailogy make-admin <邮箱>     # 升级为管理员
 ```
 
-> 配置（DB 路径 / HOST / PORT / CORS / cookie / 版本）都从仓库根 `.env` 读取（参照
-> `.env.example`，首次运行自动生成）；`PYTHONPATH` 由脚本设置（解释器启动前必须就位，无法写进 .env）。
+> 配置（DB 路径 / HOST / PORT / 版本）从仓库根 `.env` 读取（参照 `.env.example`，首次运行自动生成）；`PYTHONPATH` 由脚本设置。
 
-启动后访问下列页面：
+启动后访问：
 
 | 地址 | 用途 |
 | --- | --- |
-| `http://127.0.0.1:8000/account` | 账户：注册 / 登录 / 退出 / 个人信息 |
-| `http://127.0.0.1:8000/platform` | 密钥：密钥管理 / 申请 / 审批（需登录）|
-| `http://127.0.0.1:8000/` | 瀑布流（需先登录） |
-| `http://127.0.0.1:8000/?share=<token>` | 公开分享链接（匿名只读） |
+| `http://127.0.0.1:8000/` | 瀑布流（泳道时间线 + 详情 + 搜索） |
+| `http://127.0.0.1:8000/settings` | 设置（主题 style × mode） |
+| `http://127.0.0.1:8000/about` | 关于（版本 / GitHub） |
+| `http://127.0.0.1:8000/docs` | API 文档（Swagger） |
 
-### 3. 注册账号 + 拿到密钥
+### 3. 从 ai-log CLI 上报
 
-打开 `/platform`：
-
-![密钥流程](static/keyflow.svg)
-
-1. **注册**（首个注册的用户自动成为管理员）。
-2. 在「申请 API 密钥」提交申请，或直接「+ 自助新建」一个密钥。
-3. 管理员可在密钥页审批，或用统一入口：
-   ```bash
-   ./ailogy review                 # 交互式逐条审批（推荐）
-   ./ailogy apps                   # 列待审申请
-   ./ailogy approve <id> [备注]     # 批准并打印明文密钥
-   ./ailogy reject  <id> <理由>     # 拒绝
-   ./ailogy make-admin <邮箱>       # 提升为管理员
-   ```
-4. 密钥**明文存库、随时可在密钥页复制**（个人自托管的有意取舍）；删除不可逆。
-
-### 4. 配置 CLI 上报
-
-把后端地址与密钥写进 `~/.config/ai-log/config.json`：
-
-```json
-{
-  "root": "~/Quick/AI_log",
-  "backend": { "url": "http://127.0.0.1:8000", "api_key": "ak_你的密钥", "report": true }
-}
-```
-
-或用环境变量（优先级高于配置文件）：
+ai-log skill 的 CLI 支持「双提交」——本地写完后 POST 到本服务。在 CLI 侧配置一次：
 
 ```bash
-export AILOG_BACKEND_URL=http://127.0.0.1:8000
-export AILOG_API_KEY=ak_你的密钥
+# 指定本服务地址（只需根地址，自动拼 /api/ingest/entries）
+python3 <ai-log>/scripts/ai_logger.py --set-report-url http://127.0.0.1:8000
+# 指定本机设备名（多设备聚合时用于区分来源）
+python3 <ai-log>/scripts/ai_logger.py --set-device "我的 MacBook"
+# 记一条并上报
+python3 <ai-log>/scripts/ai_logger.py --report --title "重构日志系统" --summary "…"
 ```
 
-### 5. 记录并上报日志
+每条上报带 `device` 字段，网页顶部「设备选择器」据此筛选。详见 [ai-log skill 文档](https://github.com/icloudsheep/claude-skills/tree/main/skills/ai-log)。
+
+### 4. 直接 API 入库
+
+也可绕过 CLI 直接 POST：
 
 ```bash
-# 本地渲染 + 上报后端（report 已开则默认上报，--report 可临时强制开启）
-.venv/bin/ailog --report --title "重构日志系统" --summary "今天把 xxx 拆成了 yyy …"
-
-# 只想本地、不上报：
-.venv/bin/ailog --offline --title "草稿" --summary "…"
+curl -X POST http://127.0.0.1:8000/api/ingest/entries \
+  -H "Content-Type: application/json" \
+  -d '{"seq":1, "id":"Fox-3f2a", "name":"Fox", "emoji":"🦊", "device":"mac",
+       "datetime":"2026-06-29 10:00:00", "title":"测试", "summary":"正文"}'
 ```
 
-上报失败不会阻断本地写入——条目进待重发队列，下次运行 CLI 时自动补发。
+按 `day#seq` 幂等 upsert，重复上报覆盖而非重复插入。请求体可为单个对象或数组（批量上限 200 条 / 单条正文上限 256KB）。
 
-### 6.（可选）导入既有 ai-log 历史数据
-
-如果你之前用本地 ai-log 攒了按天目录的 `data.json`，一次性灌进库：
+### 5. 导入既有 ai-log 历史数据
 
 ```bash
-AILOGY_DB=./ailogy.db .venv/bin/python scripts/import_datajson.py ~/Quick/AI_log
+# 第二个参数是设备名（省略则用本机主机名）
+AILOGY_DB=./ailogy.db .venv/bin/python scripts/import_datajson.py ~/Quick/AI_log "我的 MacBook"
 ```
 
 ---
 
-## 三种视图
-
-刷新页面顶部的标签即可切换：
+## 页面交互
 
 ![三种视图](static/three-views.svg)
 
-- **全部**：忽略日期，一条不漏的时间倒序流。
-- **按日期**：跨天时插入日期分隔头。
-- **按会话**：先列出会话（每会话一个稳定的「emoji + 动物名」代号），点进去看该会话的全部条目。
+**泳道时间线**：每个会话一列、每条日志一个节点，按时间从上往下排，日期在交界处用色带标识。
 
-页面还支持全文搜索（标题 / 正文 / 项目 / 分支等，关键词高亮），点结果直接弹出该条详情。
+**顶部选择器**
+- **设备**：💻 全部 / 多选 / 单选，筛选不同设备上报的日志。
+- **月份**：📅 切换有数据的月份。
+- **搜索**：标题 / 正文 / 项目 / 分支全文检索（FTS5），结果浮层就近搜索框，点结果直达该条。
+
+**天 / 会话两级胶囊**
+- **天**：用户自由切换显隐（至少留一个）。
+- **会话**：出现在可见天中的可切换显隐（至少留一个）；当前可见天中完全没出现的会话进入**灰态**（不可点，仅可右键重命名 / 改色）。
+
+**节点右键菜单**：预览、编辑（Markdown 源码框，⌘/Ctrl+Enter 保存）、删除、会话重命名、改主题色。
+
+**固化策略**
+- 编辑 / 删除 / 会话改色 → 固化到 SQLite（`PATCH /api/entries/{id}`、`DELETE`、`PUT /api/sessions/{code}/color`）。
+- 会话别名 / 选择器状态（天 / 会话 / 设备）/ 主题 → 存浏览器 localStorage。
+- 所有这些操作**原地更新、不重载页面、不重置背景**，并带平滑过渡动画。
 
 ---
 
-## 公开分享
+## REST API 概览
 
-在自己的页面把某个范围设为公开，会生成一个 `?share=<token>` 链接，匿名访客只读可见：
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/timeline?month=&devices=` | 某月泳道数据；`devices` 逗号分隔，省略=全部、空=无 |
+| GET | `/api/months` | 有数据的月份列表 |
+| GET | `/api/devices` | 上报过的设备名列表 |
+| GET | `/api/entries?view=all\|session&...` | 分页条目（keyset 游标） |
+| GET | `/api/sessions` | 会话列表（按最近活动倒序） |
+| GET | `/api/entries/{id}` | 单条详情 |
+| GET | `/api/search?q=` | FTS5 全文搜索 |
+| POST | `/api/ingest/entries` | 上报（单条 / 批量，幂等 upsert） |
+| DELETE | `/api/ingest/entries/{day}/{seq}` | 按 day#seq 删除（CLI 对齐） |
+| PATCH | `/api/entries/{id}` | 编辑标题 / 正文 |
+| DELETE | `/api/entries/{id}` | 删除某条 |
+| PUT | `/api/sessions/{code}/color` | 固化会话主题色（空串=清除） |
+| GET / PUT | `/api/prefs[/{key}]` | 读 / 写前端偏好（key-value） |
 
-- 范围可选 `全部` / `某一天` / `某个会话`。
-- 默认全部私有，公开是显式动作。
-- 转回私有会**立即吊销**旧链接（404）。
+---
+
+## 数据模型
+
+`entries` 表（单表，无 user_id）：
+
+- 标识：`id`（内部自增）、`client_id`（`day#seq` 幂等键）、`seq`、`session_code`、`device`
+- 展示：`emoji`、`name`、`title`、`summary`、`color`（会话色覆盖）
+- 时间：`start_ts`、`end_ts`、`datetime`（主排序键）、`day`、`duration`
+- 上下文：`cwd`、`project`、`branch`、`model`、`mode`
+- JSON 文本列：`carryover`（跨午夜接续）、`usage`（token/轮数）
+- 全文索引：`entries_fts`（FTS5，覆盖 title/summary/name/project，触发器自动同步）
+
+`prefs` 表：`key` → `value`（JSON 文本），存前端偏好的服务端固化项。
+
+启动时 `init_db()` 建表 + 轻量列迁移（给既有库补 `device`/`color` 列）+ FTS 虚拟表与同步触发器，幂等。
 
 ---
 
@@ -180,15 +190,16 @@ AILOGY_DB=./ailogy.db .venv/bin/python scripts/import_datajson.py ~/Quick/AI_log
 Ailogy/
 ├── packages/
 │   ├── ailog_core/     # 纯逻辑：会话代号派生、token 统计、时间计算、entry 模型（CLI 与后端共用）
-│   └── ailog_cli/      # 本地 CLI：写 data.json + 离线渲染 + 可选带密钥上报（reporter）
-├── backend/app/        # FastAPI：路由(routers/)、ORM 模型、DB、鉴权(deps)、安全(security/ratelimit)
+│   └── ailog_cli/      # 本地 CLI：写 data.json + 离线 HTML 渲染
+├── backend/app/        # FastAPI：路由(routers/) + ORM 模型(models) + DB + 数据访问(repo)
 ├── frontend/
-│   ├── shared/js/      # 纯渲染：markdown / mermaid / katex / 格式化工具（前后端两场景复用）
-│   ├── viewer/         # 瀑布流页面（静态壳 + API 分页拉取 + 搜索）
-│   └── platform/       # 密钥平台前端（注册/登录/申请/审批）
+│   ├── shared/js/      # 纯渲染：markdown / mermaid / katex / 页头 / UI 基建
+│   ├── viewer/         # 瀑布流页面（泳道 + 详情 + 搜索 + 设备/月份选择器）
+│   ├── settings/       # 设置页（主题）
+│   └── about/          # 关于页（版本 + 烟花特效）
 ├── vendor/             # mermaid.min.js / katex / version.js（后端静态路由提供，离线可用）
-├── scripts/            # import_datajson（导入）/ admin（审批）
-└── tests/              # pytest（46 项：鉴权/幂等/分页/隔离/分享/限流）
+├── scripts/            # import_datajson（导入历史数据）
+└── tests/              # pytest
 ```
 
 ---
@@ -199,24 +210,16 @@ Ailogy/
 .venv/bin/python -m pytest -q     # 全量单测
 ```
 
-测试覆盖：会话代号确定性、时间计算、入库幂等、cursor 分页不重不漏、三视图、详情 IDOR 防护、
-注册登录会话、申请审批发密钥、密钥吊销、跨用户隔离、公开分享流转、限流防爆破等。
+测试覆盖：入库幂等、三视图分页（keyset 不重不漏）、详情、FTS 搜索、月份/设备列表与筛选、编辑 / 删除 / 改色、prefs 读写。
 
 ---
 
 ## 安全说明
 
-- 密码 **argon2id** 哈希；API 密钥只存 **sha256 + 前缀**，明文仅创建时返回一次，可吊销。
-- 会话用服务端表 + httponly / SameSite=Lax cookie；登录 / 注册 / 申请 / ingest 有 **IP 限流**（防爆破）。
-- 读取 / 编辑强制 **user_id 归属校验**（防 IDOR）；页面默认私有，转私即吊销分享链接。
-- ⚠️ 本地运行是**无 TLS 的明文 http**，仅限本机 / 内网。对外暴露务必置于 **https 反向代理**之后，
-  并把 cookie 的 `secure` 置 true、收紧 CORS 白名单。
+- 本服务**无鉴权**，面向本地 / 内网单用户自用。
+- 本地运行是无 TLS 的明文 http。对外暴露务必置于 https 反向代理之后，并在代理层加访问控制。
 
 ---
-
-## 里程碑
-
-M0 核心抽取 + 骨架 · M1 三视图瀑布流 · M2 账号与密钥平台 · M3 CLI 上报双模式 · M4 多用户隔离与分享 · M5 安全加固（全部完成）。
 
 ## 许可证
 

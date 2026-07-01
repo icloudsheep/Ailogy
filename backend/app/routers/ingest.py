@@ -1,22 +1,19 @@
-"""CLI 上报入口：带 API Key 的日志写入 / 编辑 / 删除。
+"""CLI 上报入口：日志写入 / 编辑 / 删除。
 
-鉴权走 api_key_user（Bearer）；按 (user_id, client_id=day#seq) 幂等 upsert，
-重复上报覆盖而非重复插入。体积上限在路由层挡（防把库撑爆）。
+无鉴权——本地单用户部署，直接访问。
+按 client_id=day#seq 幂等 upsert，重复上报覆盖而非重复插入。
 """
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from .. import models, repo
-from ..deps import api_key_user
-from ..ratelimit import rate_limit
+from .. import repo
 from ailog_core.schema import Entry
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
-MAX_SUMMARY = 256 * 1024     # 单条正文上限 256KB
-MAX_BATCH = 200              # 单次批量条数上限
-_ingest_limit = rate_limit("ingest", limit=60, window=60)  # 同 IP 每分钟 60 次
+MAX_SUMMARY = 256 * 1024
+MAX_BATCH = 200
 
 
 def _check_size(e: Entry):
@@ -25,12 +22,8 @@ def _check_size(e: Entry):
 
 
 @router.post("/entries")
-async def ingest_entries(request: Request, user: models.User = Depends(api_key_user),
-                         db: Session = Depends(get_db), _rl=Depends(_ingest_limit)):
-    """接收单条或批量 entry，幂等 upsert 到该用户名下。
-
-    请求体可为单个 entry 对象或 entry 数组。返回写入条数。
-    """
+async def ingest_entries(request: Request, db: Session = Depends(get_db)):
+    """接收单条或批量 entry，幂等 upsert。"""
     payload = await request.json()
     items = payload if isinstance(payload, list) else [payload]
     if len(items) > MAX_BATCH:
@@ -42,20 +35,19 @@ async def ingest_entries(request: Request, user: models.User = Depends(api_key_u
         except Exception as ex:
             raise HTTPException(422, f"条目格式错误：{ex}")
         _check_size(e)
-        repo.upsert_entry(db, user.id, e)
+        repo.upsert_entry(db, e)
         n += 1
     db.commit()
     return {"ok": True, "count": n}
 
 
 @router.delete("/entries/{day}/{seq}")
-def ingest_delete(day: str, seq: int, user: models.User = Depends(api_key_user),
-                  db: Session = Depends(get_db)):
-    """按 day#seq 删除该用户的一条（与本地 --delete 对齐）。"""
+def ingest_delete(day: str, seq: int, db: Session = Depends(get_db)):
+    """按 day#seq 删除一条（与本地 --delete 对齐）。"""
     from sqlalchemy import text
     client_id = f"{day}#{seq}"
     r = db.execute(text(
-        "DELETE FROM entries WHERE user_id = :uid AND client_id = :cid"
-    ), {"uid": user.id, "cid": client_id})
+        "DELETE FROM entries WHERE client_id = :cid"
+    ), {"cid": client_id})
     db.commit()
     return {"ok": True, "deleted": r.rowcount}

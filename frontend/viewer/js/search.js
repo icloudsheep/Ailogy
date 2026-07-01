@@ -1,5 +1,14 @@
-// 全文搜索：搜全部日志（后端 FTS），结果浮层；点结果跳到该条所在月份并只显该天该会话。
+// 全文搜索：搜全部日志（后端 FTS），结果浮层（固定在搜索框正下方）；点结果跳到该条所在月份并只显该天该会话。
 let _searchTimer = 0;
+
+function positionSearchBox(box) {
+  const input = document.getElementById("search-input");
+  if (!input) return;
+  const r = input.getBoundingClientRect();
+  box.style.top = (r.bottom + 6) + "px";
+  box.style.left = r.left + "px";
+  box.style.width = Math.max(r.width, 280) + "px";
+}
 
 function initSearch() {
   const input = document.getElementById("search-input");
@@ -10,12 +19,19 @@ function initSearch() {
     clearTimeout(_searchTimer);
     const q = input.value.trim();
     if (!q) { close(); return; }
-    _searchTimer = setTimeout(() => runSearch(q, box), 250);  // 防抖
+    _searchTimer = setTimeout(() => { positionSearchBox(box); runSearch(q, box); }, 250);
   });
   input.addEventListener("keydown", (e) => { if (e.key === "Escape") { input.value = ""; close(); } });
   document.addEventListener("click", (e) => {
     if (!box.contains(e.target) && e.target !== input) close();
   }, true);
+  // 重定位：每次重新取元素并校验仍在 DOM，避免持有失效引用
+  const reposition = () => {
+    const b = document.getElementById("search-results");
+    if (b && !b.hidden && document.body.contains(b)) positionSearchBox(b);
+  };
+  window.addEventListener("scroll", reposition, { passive: true });
+  window.addEventListener("resize", reposition, { passive: true });
 }
 
 async function runSearch(q, box) {
@@ -37,7 +53,6 @@ async function runSearch(q, box) {
               <span class="sr-title">${title}</span><span class="sr-seq">${esc(e.day)} #${e.seq}</span></div>
             ${snip ? `<div class="sr-snip">${snip}</div>` : ""}</div>`;
         }).join("");
-    // 点结果 → 聚焦该条（focusEntry 在 viewer.js）
     box.querySelectorAll(".sr-item").forEach((el, i) => {
       el.onclick = () => { box.hidden = true; focusEntry(r.items[i]); document.getElementById("search-input").value = ""; };
     });
@@ -47,7 +62,6 @@ async function runSearch(q, box) {
   }
 }
 
-// 命中片段：关键词上下文 + 高亮（大小写不敏感）
 function snippet(text, q) {
   const flat = text.replace(/\s+/g, " ");
   const i = flat.toLowerCase().indexOf(q.toLowerCase());

@@ -31,6 +31,7 @@ class Entry(BaseModel):
     """
     seq: int
     id: str                      # 会话代号 name-suffix（即 client 侧的 session/entry 标识）
+    device: str = ""             # 上报设备名（CLI 自动填主机名 / config 指定）
     emoji: str = ""
     name: str = ""
     title: str = ""

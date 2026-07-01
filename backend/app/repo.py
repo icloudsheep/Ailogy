@@ -1,7 +1,6 @@
 """数据访问层：entry 入库 upsert + 三视图分页查询 + FTS 搜索。
 
-集中所有面向 entries 的 SQL，路由层只调这里。游标用 keyset 分页（见 cursor.py）。
-所有查询都强制带 user_id，多用户隔离的唯一入口。
+所有查询不再带 user_id。游标用 keyset 分页（见 cursor.py）。
 """
 import json
 
@@ -10,22 +9,17 @@ from sqlalchemy import text
 from ailog_core.schema import Entry as EntrySchema, day_of
 
 
-def _entry_row_from_schema(user_id, e: EntrySchema) -> dict:
-    """把上报/导入的 entry（pydantic）拍平成 entries 表的一行 dict。
-
-    client_id 是「每条」的稳定唯一键，取 day#seq（与前端 localStorage 覆盖层的
-    日期#seq 寻址一致）；不能用 e.id（那是会话代号，同会话多条共享，会互相覆盖）。
-    session_code = e.id 仅作会话分组聚合键。
-    """
+def _entry_row_from_schema(e: EntrySchema) -> dict:
+    """把上报/导入的 entry（pydantic）拍平成 entries 表的一行 dict。"""
     day = day_of(e.datetime)
     return {
-        "user_id": user_id,
         "seq": e.seq,
-        "client_id": f"{day}#{e.seq}",   # 每条唯一：日期#当天序号
+        "client_id": f"{day}#{e.seq}",
+        "device": e.device,
         "emoji": e.emoji,
         "name": e.name,
         "title": e.title,
-        "session_code": e.id,          # 会话代号即聚合键（同会话多条共享）
+        "session_code": e.id,
         "start_ts": e.start,
         "end_ts": e.end,
         "datetime": e.datetime,
@@ -42,23 +36,20 @@ def _entry_row_from_schema(user_id, e: EntrySchema) -> dict:
     }
 
 
-def upsert_entry(db, user_id, e: EntrySchema):
-    """按 (user_id, client_id) 幂等 upsert：已存在则更新内容，否则插入。
-
-    用 SQLite 的 ON CONFLICT 做原子 upsert，避免先查后写的竞态。
-    """
-    row = _entry_row_from_schema(user_id, e)
+def upsert_entry(db, e: EntrySchema):
+    """按 client_id 幂等 upsert。color 列不被上报覆盖（前端固化的会话色）。"""
+    row = _entry_row_from_schema(e)
     db.execute(text("""
         INSERT INTO entries
-          (user_id, seq, client_id, emoji, name, title, session_code, start_ts, end_ts,
+          (seq, client_id, device, emoji, name, title, session_code, start_ts, end_ts,
            datetime, day, duration, cwd, project, branch, model, summary, mode, carryover, usage,
            created_at, updated_at)
         VALUES
-          (:user_id, :seq, :client_id, :emoji, :name, :title, :session_code, :start_ts, :end_ts,
+          (:seq, :client_id, :device, :emoji, :name, :title, :session_code, :start_ts, :end_ts,
            :datetime, :day, :duration, :cwd, :project, :branch, :model, :summary, :mode, :carryover, :usage,
            datetime('now'), datetime('now'))
-        ON CONFLICT(user_id, client_id) DO UPDATE SET
-          seq=excluded.seq, emoji=excluded.emoji, name=excluded.name, title=excluded.title,
+        ON CONFLICT(client_id) DO UPDATE SET
+          seq=excluded.seq, device=excluded.device, emoji=excluded.emoji, name=excluded.name, title=excluded.title,
           session_code=excluded.session_code, start_ts=excluded.start_ts, end_ts=excluded.end_ts,
           datetime=excluded.datetime, day=excluded.day, duration=excluded.duration,
           cwd=excluded.cwd, project=excluded.project, branch=excluded.branch, model=excluded.model,
@@ -68,32 +59,25 @@ def upsert_entry(db, user_id, e: EntrySchema):
 
 
 def _row_to_dict(r) -> dict:
-    """把 entries 行（Row）还原成给前端的 JSON 结构（含解析 JSON 列）。"""
     d = dict(r._mapping)
     d["carryover"] = json.loads(d["carryover"]) if d.get("carryover") else None
     d["usage"] = json.loads(d["usage"]) if d.get("usage") else None
     return d
 
 
-# entries 表对外暴露的列（不含内部 created_at/updated_at）
-_COLS = ("id, user_id, seq, client_id, emoji, name, title, session_code, "
+_COLS = ("id, seq, client_id, device, emoji, name, title, session_code, "
          "start_ts AS start, end_ts AS end, datetime, day, duration, cwd, "
-         "project, branch, model, summary, mode, carryover, usage")
+         "project, branch, model, summary, mode, color, carryover, usage")
 
 
-def list_entries(db, user_id, cursor=None, limit=50):
-    """全量 / 按日期视图：按 datetime DESC, id DESC 的时间倒序流（走索引①）。
-
-    两视图后端查询相同；按日期视图由前端用每条的 day 字段插日期分隔头。
-    返回 (items, next_cursor)。
-    """
+def list_entries(db, cursor=None, limit=50):
+    """全量 / 按日期视图：按 datetime DESC, id DESC 的时间倒序流。"""
     from .cursor import decode_cursor, encode_cursor
     limit = max(1, min(limit, 100))
     cur = decode_cursor(cursor)
-    params = {"uid": user_id, "lim": limit + 1}
-    where = "user_id = :uid"
+    params = {"lim": limit + 1}
+    where = "1=1"
     if cur and "dt" in cur and "id" in cur:
-        # keyset：取严格早于游标的（datetime, id）
         where += " AND (datetime < :dt OR (datetime = :dt AND id < :cid))"
         params["dt"] = cur["dt"]; params["cid"] = cur["id"]
     rows = db.execute(text(
@@ -103,15 +87,11 @@ def list_entries(db, user_id, cursor=None, limit=50):
     return _paginate(rows, limit, lambda d: {"dt": d["datetime"], "id": d["id"]}, encode_cursor)
 
 
-def list_sessions(db, user_id, cursor=None, limit=50):
-    """按 session 视图第一层：聚合出 session 列表，按最近活动倒序。
-
-    每项含 session_code、最近活动时间、条数、首条 emoji/name（用于展示）。
-    """
+def list_sessions(db, cursor=None, limit=50):
     from .cursor import decode_cursor, encode_cursor
     limit = max(1, min(limit, 100))
     cur = decode_cursor(cursor)
-    params = {"uid": user_id, "lim": limit + 1}
+    params = {"lim": limit + 1}
     having = ""
     if cur and "last" in cur and "code" in cur:
         having = "HAVING last_activity < :last OR (last_activity = :last AND session_code < :code)"
@@ -119,7 +99,7 @@ def list_sessions(db, user_id, cursor=None, limit=50):
     rows = db.execute(text(
         "SELECT session_code, MAX(datetime) AS last_activity, COUNT(*) AS cnt, "
         "MAX(emoji) AS emoji, MAX(name) AS name "
-        "FROM entries WHERE user_id = :uid "
+        "FROM entries "
         f"GROUP BY session_code {having} "
         "ORDER BY last_activity DESC, session_code DESC LIMIT :lim"
     ), params).fetchall()
@@ -133,13 +113,12 @@ def list_sessions(db, user_id, cursor=None, limit=50):
     return items, nxt
 
 
-def list_session_entries(db, user_id, session_code, cursor=None, limit=50):
-    """按 session 视图第二层：某 session 内按时间倒序拉条目（走索引②）。"""
+def list_session_entries(db, session_code, cursor=None, limit=50):
     from .cursor import decode_cursor, encode_cursor
     limit = max(1, min(limit, 100))
     cur = decode_cursor(cursor)
-    params = {"uid": user_id, "code": session_code, "lim": limit + 1}
-    where = "user_id = :uid AND session_code = :code"
+    params = {"code": session_code, "lim": limit + 1}
+    where = "session_code = :code"
     if cur and "dt" in cur and "id" in cur:
         where += " AND (datetime < :dt OR (datetime = :dt AND id < :cid))"
         params["dt"] = cur["dt"]; params["cid"] = cur["id"]
@@ -150,19 +129,14 @@ def list_session_entries(db, user_id, session_code, cursor=None, limit=50):
     return _paginate(rows, limit, lambda d: {"dt": d["datetime"], "id": d["id"]}, encode_cursor)
 
 
-def get_entry(db, user_id, entry_id):
-    """取单条详情（带 user_id 归属校验，防 IDOR）。不存在/不属于该用户返回 None。"""
+def get_entry(db, entry_id):
     r = db.execute(text(
-        f"SELECT {_COLS} FROM entries WHERE id = :id AND user_id = :uid"
-    ), {"id": entry_id, "uid": user_id}).fetchone()
+        f"SELECT {_COLS} FROM entries WHERE id = :id"
+    ), {"id": entry_id}).fetchone()
     return _row_to_dict(r) if r else None
 
 
-def search_entries(db, user_id, q, cursor=None, limit=50):
-    """FTS5 全文搜索（title/summary/name/project），按相关度 + 时间排序，cursor 分页。
-
-    用 offset 游标（FTS rank 不便做 keyset），个人规模可接受；游标里存已取条数。
-    """
+def search_entries(db, q, cursor=None, limit=50):
     from .cursor import decode_cursor, encode_cursor
     limit = max(1, min(limit, 100))
     cur = decode_cursor(cursor)
@@ -170,14 +144,12 @@ def search_entries(db, user_id, q, cursor=None, limit=50):
     q = (q or "").strip()
     if not q:
         return [], None
-    # FTS MATCH 用参数化 + 前缀匹配；特殊字符交给 fts5 默认 tokenizer
     fts_q = _fts_sanitize(q)
     rows = db.execute(text(
         f"SELECT {_COLS} FROM entries "
         "WHERE id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH :q) "
-        "AND user_id = :uid "
         "ORDER BY datetime DESC, id DESC LIMIT :lim OFFSET :off"
-    ), {"q": fts_q, "uid": user_id, "lim": limit + 1, "off": offset}).fetchall()
+    ), {"q": fts_q, "lim": limit + 1, "off": offset}).fetchall()
     items = [_row_to_dict(r) for r in rows]
     has_more = len(items) > limit
     items = items[:limit]
@@ -186,7 +158,6 @@ def search_entries(db, user_id, q, cursor=None, limit=50):
 
 
 def _fts_sanitize(q: str) -> str:
-    """把用户输入转成安全的 FTS5 查询：按空白切词、每词加前缀通配、去掉 FTS 语法字符。"""
     import re
     words = re.findall(r"[^\s\"'()*:^-]+", q)
     if not words:
@@ -195,7 +166,6 @@ def _fts_sanitize(q: str) -> str:
 
 
 def _paginate(rows, limit, cursor_of, encode):
-    """通用：rows 多取 1 条判断是否还有下一页，返回 (items, next_cursor)。"""
     items = [_row_to_dict(r) for r in rows]
     has_more = len(items) > limit
     items = items[:limit]
@@ -203,25 +173,75 @@ def _paginate(rows, limit, cursor_of, encode):
     return items, nxt
 
 
-
-def list_month(db, user_id, month):
-    """取某月（YYYY-MM）该用户的全部条目，按时间升序（供前端泳道时间线构建）。
-
-    一个月的量级（个人日志）一次性返回即可，前端按天→会话分组渲染泳道。
-    """
-    from sqlalchemy import text
+def list_month(db, month, devices=None):
+    """取某月条目；devices 为 None=全部，[]=无（空结果），否则只取这些设备。"""
+    if devices is not None and len(devices) == 0:
+        return []  # 显式指定空设备集 → 无结果
+    params = {"m": f"{month}-%"}
+    where = "day LIKE :m"
+    if devices is not None:
+        ph = ", ".join(f":d{i}" for i in range(len(devices)))
+        where += f" AND COALESCE(device,'') IN ({ph})"
+        for i, d in enumerate(devices):
+            params[f"d{i}"] = d
     rows = db.execute(text(
-        f"SELECT {_COLS} FROM entries WHERE user_id = :uid AND day LIKE :m "
+        f"SELECT {_COLS} FROM entries WHERE {where} "
         "ORDER BY datetime ASC, id ASC"
-    ), {"uid": user_id, "m": f"{month}-%"}).fetchall()
+    ), params).fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-def list_months(db, user_id):
-    """该用户有数据的月份列表（YYYY-MM，倒序），供月份二级页选择。"""
-    from sqlalchemy import text
+def list_months(db):
     rows = db.execute(text(
-        "SELECT DISTINCT substr(day,1,7) AS m FROM entries WHERE user_id = :uid "
-        "ORDER BY m DESC"
-    ), {"uid": user_id}).fetchall()
+        "SELECT DISTINCT substr(day,1,7) AS m FROM entries ORDER BY m DESC"
+    )).fetchall()
     return [r[0] for r in rows]
+
+
+def list_devices(db):
+    """所有上报设备名（去重，按字母序）。空设备名归一为 ''。"""
+    rows = db.execute(text(
+        "SELECT DISTINCT COALESCE(device,'') AS d FROM entries ORDER BY d"
+    )).fetchall()
+    return [r[0] for r in rows]
+
+
+# ── 编辑 / 删除 / 改色（固化到 DB）──
+def edit_entry(db, entry_id, title=None, summary=None):
+    """按内部 id 编辑标题/正文。None 表示该字段不变。返回是否命中。"""
+    sets, params = [], {"id": entry_id}
+    if title is not None: sets.append("title = :title"); params["title"] = title
+    if summary is not None: sets.append("summary = :summary"); params["summary"] = summary
+    if not sets: return False
+    sets.append("updated_at = datetime('now')")
+    r = db.execute(text(f"UPDATE entries SET {', '.join(sets)} WHERE id = :id"), params)
+    return r.rowcount > 0
+
+
+def delete_entry(db, entry_id):
+    r = db.execute(text("DELETE FROM entries WHERE id = :id"), {"id": entry_id})
+    return r.rowcount > 0
+
+
+def set_session_color(db, session_code, color):
+    """给某会话所有条目写入颜色覆盖（color 为空串则清除）。"""
+    db.execute(text("UPDATE entries SET color = :c WHERE session_code = :s"),
+               {"c": color or None, "s": session_code})
+
+
+# ── 前端偏好固化（prefs 表）──
+def get_pref(db, key):
+    r = db.execute(text("SELECT value FROM prefs WHERE key = :k"), {"k": key}).fetchone()
+    return r[0] if r else None
+
+
+def set_pref(db, key, value):
+    db.execute(text(
+        "INSERT INTO prefs (key, value, updated_at) VALUES (:k, :v, datetime('now')) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')"
+    ), {"k": key, "v": value})
+
+
+def all_prefs(db):
+    rows = db.execute(text("SELECT key, value FROM prefs")).fetchall()
+    return {r[0]: r[1] for r in rows}

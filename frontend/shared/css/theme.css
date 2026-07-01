@@ -352,7 +352,10 @@
 
   /* ── 页面切换动画：进入淡入上浮，离开淡出（JS 给 body 加 .leaving）── */
   @keyframes page-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  /* body 的入场动画含 transform，动画期间 fixed 后代相对 body 定位；
+     播完后 JS 加 .page-ready 立刻移除 animation，恢复正常 fixed 包含块 */
   body { animation: page-enter .32s cubic-bezier(.2,.8,.2,1) both; }
+  body.page-ready { animation: none; }
   body.leaving { opacity: 0; transform: translateY(-6px);
     transition: opacity .2s ease, transform .2s ease; animation: none; }
   @media (prefers-reduced-motion: reduce) { body, body.leaving { animation: none !important; transition: none !important; } }

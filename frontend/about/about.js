@@ -10,7 +10,7 @@ fetch("/api/version").then((r) => r.json()).then((v) => {
 function startFireworks(canvas) {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
-  let raf = 0, W = 0, H = 0, last = 0, spawnAcc = 0;
+  let raf = 0, W = 0, H = 0, last = 0, spawnAcc = 0, stopped = false;
   const rockets = [], sparks = [];
   const COLORS = ["#ff9eb3", "#ffd17a", "#9ee6c4", "#8ec5ff", "#c5a3ff", "#ff9ed6", "#7ee787"];
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -22,7 +22,7 @@ function startFireworks(canvas) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   resize();
-  new ResizeObserver(resize).observe(canvas);
+  const ro = new ResizeObserver(resize); ro.observe(canvas);
   function launch() {
     rockets.push({ x: rand(W * .2, W * .8), y: H, vx: rand(-.4, .4), vy: rand(-7.5, -6),
                    color: COLORS[(Math.random() * COLORS.length) | 0], ty: rand(H * .15, H * .5) });
@@ -35,6 +35,7 @@ function startFireworks(canvas) {
     }
   }
   function frame(t) {
+    if (stopped) return;
     const dt = (Math.min((t - last) || 16, 40) / 16) * 0.35; last = t;
     ctx.clearRect(0, 0, W, H);
     spawnAcc += dt;
@@ -54,8 +55,18 @@ function startFireworks(canvas) {
     ctx.globalAlpha = 1;
     raf = requestAnimationFrame(frame);
   }
+  function start() { if (stopped || raf) return; last = 0; raf = requestAnimationFrame(frame); }
+  function pause() { if (raf) { cancelAnimationFrame(raf); raf = 0; } }
   launch();
-  raf = requestAnimationFrame(frame);
+  start();
+  // 标签页不可见时暂停 rAF，省 CPU/电量；可见时恢复
+  const onVis = () => { if (document.hidden) pause(); else start(); };
+  document.addEventListener("visibilitychange", onVis);
+  // 页面卸载时彻底清理：停 rAF、断开 observer、移除监听
+  window.addEventListener("pagehide", () => {
+    stopped = true; pause(); ro.disconnect();
+    document.removeEventListener("visibilitychange", onVis);
+  }, { once: true });
 }
 
 startFireworks(document.querySelector(".fireworks"));
