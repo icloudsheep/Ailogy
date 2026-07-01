@@ -1,10 +1,9 @@
-"""ailog_core —— CLI 与后端共用的纯逻辑（单一事实源）。
+"""ailog_core —— 后端入库校验用的 entry 契约（单一事实源）。
 
-只放「不依赖落盘 / 不依赖 HTTP」的算法，保证 CLI 本地渲染与后端 ingest 用同一套：
-    session     会话代号确定性派生
-    transcript  会话 transcript 解析与 token/轮数统计
-    timecalc    时间 / duration / 跨午夜天数计算
-    schema      entry 字段定义与构建（pydantic 模型）
+只保留一条日志条目的规范形状（pydantic 模型），供后端 ingest 解析 / 校验请求体、
+repo 落盘映射复用：
+    schema      entry 字段定义（Entry / Usage / Carryover）与 day_of
 
-落盘（data.json）在 ailog_cli.store；HTML 渲染在 ailog_cli.render；二者不属于 core。
+会话代号派生、token 统计、时间计算、本地落盘与 HTML 渲染都属于「客户端」职责，
+已收敛到 ai-log skill（唯一 CLI 真源），本后端仓库不再持有那部分逻辑。
 """

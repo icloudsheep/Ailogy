@@ -20,16 +20,13 @@ dev = [
     "httpx>=0.27",
 ]
 
-[project.scripts]
-ailog = "ailog_cli.cli:main"
-
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = { "" = "packages", "ailogy_backend" = "backend" }
-packages = ["ailog_core", "ailog_cli"]
+packages = ["ailog_core"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,60 +1,13 @@
-"""ailog_core 纯逻辑单测：会话代号、时间计算、entry schema。
+"""ailog_core.schema 单测：后端入库校验用的 entry 契约。
 
-这些是 CLI 与后端共用的单一事实源，必须确定性、与原 ai-log 行为一致。
+会话代号 / 时间计算等客户端逻辑已迁至 ai-log skill，本仓库只保留 entry 形状校验。
 """
 import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "packages"))
 
-from ailog_core.session import session_codename, ANIMALS
-from ailog_core.timecalc import secs_between, days_between
 from ailog_core.schema import Entry, Usage, Carryover, day_of
-
-
-# ── 会话代号：确定性派生 ──
-def test_codename_deterministic():
-    a = session_codename("session-abc")
-    b = session_codename("session-abc")
-    assert a == b  # 同 seed 恒定
-    assert set(a) == {"emoji", "name", "suffix"}
-    assert len(a["suffix"]) == 4
-
-
-def test_codename_distinct():
-    assert session_codename("x") != session_codename("y")
-
-
-def test_codename_empty_seed():
-    assert session_codename("") == {"emoji": "🐾", "name": "Anon", "suffix": "0000"}
-    assert session_codename(None) == {"emoji": "🐾", "name": "Anon", "suffix": "0000"}
-
-
-def test_codename_from_animals_table():
-    cn = session_codename("whatever")
-    assert (cn["emoji"], cn["name"]) in ANIMALS
-
-
-# ── 时间计算 ──
-def test_secs_between_basic():
-    assert secs_between("00:00:00", "01:30:00") == 5400
-    assert secs_between("10:00:00", "10:00:00") == 0
-
-
-def test_secs_between_same_day_reversed_is_zero():
-    # 同日 end 早于 start 按 0 计
-    assert secs_between("12:00:00", "09:00:00") == 0
-
-
-def test_secs_between_cross_days():
-    # 跨 1 天：23:00 → 次日 01:00 = 2 小时
-    assert secs_between("23:00:00", "01:00:00", cross_days=1) == 7200
-
-
-def test_days_between():
-    assert days_between("2026-06-24", "2026-06-29") == 5
-    assert days_between("2026-06-29", "2026-06-24") == -5
-    assert days_between("bad", "2026-06-29") == 0  # 解析失败回退 0
 
 
 # ── entry schema ──
