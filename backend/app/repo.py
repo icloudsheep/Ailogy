@@ -3,10 +3,51 @@
 所有查询不再带 user_id。游标用 keyset 分页（见 cursor.py）。
 """
 import json
+import random
 
 from sqlalchemy import text
 
 from ailog_core.schema import Entry as EntrySchema, day_of
+
+# 会话主题色候选盘（与前端 utils.js 的 PALETTE 保持一致）：12 色相 × 5 明暗档 = 60 色。
+# 新会话首次入库时从中随机挑一个（尽量避开已被占用的），持久化到 entries.color，
+# 使不同会话天然拥有不同、且跨设备/浏览器稳定的颜色。
+PALETTE = [
+    "#fa5f5f", "#faac5f", "#fafa5f", "#acfa5f", "#5ffa5f", "#5ffaac",
+    "#5ffafa", "#5facfa", "#5f5ffa", "#ac5ffa", "#fa5ffa", "#fa5fac",
+    "#e64040", "#e69340", "#e6e640", "#93e640", "#40e640", "#40e693",
+    "#40e6e6", "#4093e6", "#4040e6", "#9340e6", "#e640e6", "#e64093",
+    "#d15e5e", "#d1985e", "#d1d15e", "#98d15e", "#5ed15e", "#5ed198",
+    "#5ed1d1", "#5e98d1", "#5e5ed1", "#985ed1", "#d15ed1", "#d15e98",
+    "#bf2626", "#bf7326", "#bfbf26", "#73bf26", "#26bf26", "#26bf73",
+    "#26bfbf", "#2673bf", "#2626bf", "#7326bf", "#bf26bf", "#bf2673",
+    "#fc8b8b", "#fcc48b", "#fcfc8b", "#c4fc8b", "#8bfc8b", "#8bfcc4",
+    "#8bfcfc", "#8bc4fc", "#8b8bfc", "#c48bfc", "#fc8bfc", "#fc8bc4",
+]
+
+
+def _ensure_session_color(db, session_code):
+    """确保某会话有稳定的主题色：已有则沿用并回填空行；没有则随机分配一个。
+
+    - 若该会话已有任一行带色（用户改过色，或此前已分配），沿用该色并补齐本会话的空行。
+    - 否则从调色盘挑一个「当前未被其他会话占用」的色（都占满则纯随机），写入本会话全部行。
+    """
+    existing = db.execute(text(
+        "SELECT color FROM entries WHERE session_code = :s AND color IS NOT NULL LIMIT 1"
+    ), {"s": session_code}).scalar()
+    if existing:
+        db.execute(text(
+            "UPDATE entries SET color = :c WHERE session_code = :s AND color IS NULL"
+        ), {"c": existing, "s": session_code})
+        return
+    used = {row[0] for row in db.execute(text(
+        "SELECT DISTINCT color FROM entries WHERE color IS NOT NULL"
+    )).fetchall()}
+    free = [c for c in PALETTE if c not in used]
+    chosen = random.choice(free) if free else random.choice(PALETTE)
+    db.execute(text(
+        "UPDATE entries SET color = :c WHERE session_code = :s"
+    ), {"c": chosen, "s": session_code})
 
 
 def _entry_row_from_schema(e: EntrySchema) -> dict:
@@ -56,6 +97,8 @@ def upsert_entry(db, e: EntrySchema):
           summary=excluded.summary, mode=excluded.mode, carryover=excluded.carryover, usage=excluded.usage,
           updated_at=datetime('now')
     """), row)
+    # 分配/沿用会话主题色：新会话随机取色，已有色的会话沿用（不覆盖用户改色）。
+    _ensure_session_color(db, e.id)
 
 
 def _row_to_dict(r) -> dict:

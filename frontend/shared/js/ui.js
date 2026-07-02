@@ -14,11 +14,13 @@ function applyTheme() {
   document.documentElement.setAttribute("data-mode", curMode());
 }
 function setStyle(key) {
+  if (key === curStyle()) return;  // 无变动：不写入、不重绘、不提示
   try { localStorage.setItem(STYLE_KEY, key); } catch (_) {}
   applyTheme();
   showToast(`已切换为「${STYLE_LABEL[key]}」风格`, { title: "主题" });
 }
 function setMode(key) {
+  if (key === curMode()) return;   // 无变动：不写入、不重绘、不提示
   try { localStorage.setItem(MODE_KEY, key); } catch (_) {}
   applyTheme();
   showToast(`已切换为「${MODE_LABEL[key]}」模式`, { title: "主题" });
@@ -33,7 +35,7 @@ function openMenu(ev, { head, items }) {
   menu.innerHTML = (head ? `<div class="ctx-head">${head}</div>` : "")
     + items.map((it, i) => it.sep
         ? `<div class="ctx-sep"></div>`
-        : `<div class="ctx-item" data-i="${i}">${it.label}${it.check ? '<span class="ck">✅</span>' : ""}</div>`).join("");
+        : `<div class="ctx-item" data-i="${i}">${it.label}${it.check ? '<span class="ck">' + icon("check") + '</span>' : ""}</div>`).join("");
   document.body.appendChild(menu);
   const mw = menu.offsetWidth, mh = menu.offsetHeight;
   let x = ev.clientX, y = ev.clientY;
@@ -53,14 +55,14 @@ function openPageMenu(ev) {
   const modeItem = (k, l) => ({ label: l, check: md === k, act: () => setMode(k) });
   const nav = (window.__nav || {});
   const items = [
-    { label: "🔄 刷新", act: () => location.reload() },
+    { label: icon("refresh") + " 刷新", act: () => location.reload() },
     { sep: true },
-    styleItem("glass", "🫧 玻璃"), styleItem("neumorphism", "🧊 拟态"), styleItem("newspaper", "📰 报纸"),
+    styleItem("glass", icon("glass") + " 玻璃"), styleItem("neumorphism", icon("cube") + " 拟态"), styleItem("newspaper", icon("newspaper") + " 报纸"),
     { sep: true },
-    modeItem("light", "☀️ 光明"), modeItem("dark", "🌙 黑暗"),
+    modeItem("light", icon("sun") + " 光明"), modeItem("dark", icon("moon") + " 黑暗"),
     { sep: true },
-    { label: "⚙️ 设置", act: () => location.href = "/settings" },
-    { label: "ℹ️ 关于", act: () => (window.showAbout ? showAbout() : location.href = "/about") },
+    { label: icon("gear") + " 设置", act: () => location.href = "/settings" },
+    { label: icon("info") + " 关于", act: () => (window.showAbout ? showAbout() : location.href = "/about") },
   ];
   openMenu(ev, { items });
 }

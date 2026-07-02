@@ -12,6 +12,11 @@
     --bg-anim: huewash 40s ease-in-out infinite;  /* 仅玻璃流动；其余 none */
   }
 
+  /* 图标（SVG symbol sprite，见 shared/js/icons.js）：随文字颜色/字号自适应，替代原 UI emoji。
+     描边风格：stroke=currentColor、不填充；尺寸默认 1em，可用额外 class 覆盖。 */
+  .icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; flex: none;
+    fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
   /* ── 明暗维度（data-mode） ───────────────────────────── */
   html[data-mode="dark"] {
     --line: rgba(180,195,235,.16); --txt: #e7ecf8; --dim: #9aa7c8;
@@ -286,13 +291,16 @@
   /* 危险确定键（删除）：红色渐变 */
   .modal-btn.ok.danger { background: linear-gradient(120deg, #ff7a6e, #e0554a); box-shadow: 0 8px 20px -8px rgba(224,85,74,.7); }
   /* 编辑模态：放宽宽度容纳源码框；标题/正文标签 + 等宽多行编辑框 */
-  .modal.edit { width: min(680px, calc(100vw - 40px)); }
+  /* 编辑 / 预览模态：占视口 80% 宽高，方便大段内容编辑与查看；内部纵向弹性布局，正文区填满剩余高度 */
+  .modal.edit, .modal.preview { width: 80vw; height: 80vh; max-width: none;
+    display: flex; flex-direction: column; }
   .edit-label { display: block; margin-top: 14px; margin-bottom: 6px; font-size: 11px; letter-spacing: .4px;
     text-transform: uppercase; color: var(--dim); }
-  .edit-body { min-height: 220px; max-height: 52vh; resize: vertical; line-height: 1.6;
+  /* 编辑正文：占满标题/操作栏之外的全部高度 */
+  .edit-body { flex: 1; min-height: 120px; max-height: none; resize: none; line-height: 1.6;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: pre-wrap; overflow: auto; }
-  /* 预览模态：只读渲染区，复用编辑模态宽度；内容超高时滚动 */
-  .modal.preview .preview-body { margin-top: 14px; max-height: 64vh; overflow-y: auto; padding-right: 4px; }
+  /* 预览模态：只读渲染区，占满剩余高度，内容超高时滚动 */
+  .modal.preview .preview-body { flex: 1; margin-top: 14px; min-height: 0; overflow-y: auto; padding-right: 4px; }
   /* 暗色适配：输入框/编辑框/取消按钮默认硬编码白底，在暗底上是刺眼亮白块；
      改为半透明浅色叠加（与暗色 .f 字段框同理），placeholder 提亮，保证可读。 */
   html[data-mode="dark"] .modal-input {
@@ -328,10 +336,12 @@
     background: var(--lg-bg); border-bottom: var(--lg-border);
     backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
     box-shadow: 0 8px 24px -16px rgba(40,50,90,.4), var(--lg-inset);
-    display: flex; flex-direction: column; gap: 10px; }
-  .header-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    display: flex; flex-direction: column; gap: 14px; }
+  /* 顶层主行（品牌 / 选择器按钮 / 搜索 / 导航）：加高、更突出，作为最高层级不与下方天/会话选择器混杂 */
+  .header-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; min-height: 48px; }
   .topbar .brand { font-size: 20px; font-weight: 700; color: var(--title-color); text-decoration: none;
-    white-space: nowrap; }
+    white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
+  .topbar .brand .icon { width: 1.05em; height: 1.05em; color: #6ea8fe; }
   .header-slot { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
   .header-nav { display: flex; gap: 6px; margin-left: auto; }
   .hnav { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px;
@@ -343,12 +353,6 @@
   .hnav .emo { font-size: 14px; }
   /* 窄屏隐藏导航文字、只留图标 */
   @media (max-width: 640px) { .hnav-label { display: none; } }
-
-  /* ── 左下角调试标识（仅管理员）：半透明小字，标注当前页面所属部分 ── */
-  .debug-tag { position: fixed; left: 12px; bottom: 10px; z-index: 60;
-    font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: var(--dim); opacity: .45; user-select: none; pointer-events: none;
-    letter-spacing: .3px; }
 
   /* ── 页面切换动画：进入淡入上浮，离开淡出（JS 给 body 加 .leaving）── */
   @keyframes page-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

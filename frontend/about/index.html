@@ -15,22 +15,23 @@
 </head>
 <body>
 <div class="bg"></div>
-<header id="app-header" data-title="ℹ️ 关于 Ailogy"></header>
+<header id="app-header" data-icon="info" data-title="关于 Ailogy"></header>
 <main class="wrap">
   <section class="box about-box">
     <canvas class="fireworks"></canvas>
     <div class="about-body">
-      <div class="about-logo">🌊</div>
+      <div class="about-logo"><svg class="icon" aria-hidden="true"><use href="#i-waves"></use></svg></div>
       <div class="about-name">Ailogy</div>
       <div class="about-ver">版本 <b id="ver">…</b></div>
-      <p class="about-desc">把 AI 工作日志从本地离线工具升级为前后端服务：CLI 带密钥上报，
-        后端按用户隔离存储，网页瀑布流呈现，支持三视图、Markdown / Mermaid / LaTeX 渲染、全文搜索、公开分享。</p>
+      <p class="about-desc">AI 工作日志纯后端服务：接收 ai-log 客户端上报，SQLite 存库，
+        网页泳道时间线呈现，支持 Markdown / Mermaid / LaTeX 渲染、全文搜索、按设备与月份筛选。零鉴权，面向本地 / 内网单用户自用。</p>
       <a class="about-repo" id="repo" href="#" target="_blank" rel="noopener">GitHub 仓库</a>
       <div class="about-copy">Copyright © 2026 UniEver Studio. All rights reserved.</div>
     </div>
   </section>
 </main>
 <script src="/static/frontend/shared/js/utils.js"></script>
+<script src="/static/frontend/shared/js/icons.js"></script>
 <script src="/static/frontend/shared/js/ui.js"></script>
 <script src="/static/frontend/shared/js/header.js"></script>
 <script src="/static/frontend/shared/js/page-nav.js"></script>

@@ -1,27 +1,58 @@
 
-  .wrap { display: flex; gap: clamp(16px,2.5vw,32px); align-items: flex-start; padding: 20px clamp(12px,2vw,24px) 36px; }
-  /* 左侧泳道：独立滚动视口 */
-  .left { position: sticky; top: calc(var(--topbar-h) + 18px); flex: none;
-    max-height: calc(100vh - var(--topbar-h) - 38px); overflow-y: auto; overflow-x: hidden; }
-  .left::-webkit-scrollbar { width: 9px; }
-  .left::-webkit-scrollbar-thumb { background: rgba(60,72,110,.32); border-radius: 9px; }
-  .left::-webkit-scrollbar-thumb:hover { background: rgba(60,72,110,.5); }
-  .left::-webkit-scrollbar-track { background: transparent; }
-  .stage { position: relative; }
-  .stage.swap { animation: stage-in .42s cubic-bezier(.2,.8,.2,1) both; }
-  @keyframes stage-in { from { opacity: .4; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  /* 右侧：随页面流动，无自身滚动条 */
-  .right { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 14px; }
+  /* 泳道页：整页永不出现窗口滚动条——html/body 锁定为视口高度、禁止溢出。
+     banner 作为置顶的半透明磨砂浮层（fixed），内容滚动时从其下穿过；
+     两个面板从视口顶端(y=0)铺满整高，用 padding-top = banner 高度把内容压到 banner 之下，
+     滚动时上方内容滑入 banner 底下、被磨砂玻璃虚化。banner z-index 更高、盖住面板顶部一条，
+     所以可见的滚动条只落在 banner 之下的区域，body 仍 overflow:hidden、无整页滚动条。 */
+  body.viewer-page { height: 100vh; min-height: 0; overflow: hidden; }
+  body.viewer-page .topbar { position: fixed; top: 0; left: 0; right: 0; }
+  body.viewer-page .wrap { position: absolute; inset: 0; min-height: 0;
+    display: flex; gap: clamp(16px,2.5vw,32px); align-items: stretch;
+    padding: 0 clamp(12px,2vw,24px); box-sizing: border-box; }
+  /* 左侧泳道：独立滚动视口，顶部留出 banner 高度（内容起点在 banner 之下，滚动时滑入其后）。
+     overscroll-behavior:contain 阻断滚动链——滚到顶/底时滚轮事件不再冒泡带动其它区域。
+     隐藏原生滚动条：其轨道会一直顶到 y=0、被 banner 盖住，改用只落在 banner 之下的自绘滚动条（见 .vscroll）。 */
+  .left { flex: none; height: 100%; overflow-y: auto; overflow-x: hidden;
+    overscroll-behavior: contain; scrollbar-width: none;
+    padding-top: calc(var(--topbar-h, 150px) + 16px); padding-bottom: 20px;
+    padding-left: 18px; padding-right: 18px; box-sizing: border-box; }
+  .left::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  .stage { position: relative; transition: width .5s cubic-bezier(.2,.8,.2,1), height .5s cubic-bezier(.2,.8,.2,1); }
+  /* 入场动画交给各节点自己的 pop（见下）；不再对整块 stage 做 opacity 淡入——
+     父级 opacity<1 会令子元素 .day-band 的 backdrop-filter 在动画期间失效，
+     背景从半透明闪成不透明；同时位移式淡入还会造成滚动条瞬时闪现。 */
+  /* 右侧日志区：独立滚动（自绘滚动条），同样阻断滚动链，顶部同样留出 banner 高度 */
+  .right { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 14px;
+    height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+    padding-top: calc(var(--topbar-h, 150px) + 16px); padding-bottom: 20px;
+    padding-left: 22px; padding-right: 22px; box-sizing: border-box; }
+  .right::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  /* 自绘竖向滚动条：应需求设为完全透明（不显示），仅保留其占位与拖拽热区逻辑。 */
+  .vscroll { position: fixed; width: 9px; z-index: 19; pointer-events: none; opacity: 0;
+    transition: opacity .3s ease; }
+  .vscroll.show { opacity: 0; }
+  .vscroll-thumb { position: absolute; left: 0; width: 100%; border-radius: 9px;
+    background: transparent; pointer-events: auto; cursor: pointer; transition: background .2s; }
 
   /* 左侧泳道 */
   svg.rails { position: absolute; inset: 0; overflow: visible; pointer-events: none; z-index: 1; }
   .rail { stroke-width: 6; fill: none; opacity: .5; stroke-linecap: round; stroke-dasharray: var(--len); stroke-dashoffset: var(--len);
           animation: draw 2s cubic-bezier(.4,0,.2,1) forwards; }
-  /* 延伸线：贯穿整列、半宽(3)半透明，淡淡延展到页面高度 */
-  .rail-ext { stroke-width: 3; fill: none; opacity: .25; stroke-linecap: round; }
-  /* 时间线节点：作用域限定在 #stage 内，避免 .node 类名泄漏到 mermaid 图的同名节点 */
+  /* 延伸线：贯穿整列、半宽(3)半透明，淡淡延展到页面高度；用 transform 平移，泳道增减时平滑滑动 */
+  .rail-ext { stroke-width: 3; fill: none; opacity: .25; stroke-linecap: round;
+              transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .38s ease, stroke .3s ease; }
+  /* 加粗实色段：以「天」为单位，每条泳道当天首→末节点之间的连线，粗(9px)且色彩更实，突出当天活动区间 */
+  .rail-seg { stroke-width: 9; fill: none; opacity: .6; stroke-linecap: round;
+              transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .38s ease, stroke .3s ease,
+                y1 .5s cubic-bezier(.2,.8,.2,1), y2 .5s cubic-bezier(.2,.8,.2,1); }
+  /* 时间线节点：作用域限定在 #stage 内，避免 .node 类名泄漏到 mermaid 图的同名节点。
+     left/top 走 transition，泳道增减导致的重排/移列会平滑滑动；入场用 pop（仅 .enter 触发）。 */
   #stage .node { position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2;
-    animation: pop 1s cubic-bezier(.2,.9,.3,1.3) both; transition: left .9s cubic-bezier(.2,.8,.2,1); }
+    transition: left .5s cubic-bezier(.2,.8,.2,1), top .5s cubic-bezier(.2,.8,.2,1); }
+  #stage .node.enter { animation: pop 1s cubic-bezier(.2,.9,.3,1.3) both; }
+  /* 节点离场：缩小淡出 */
+  #stage .node.leaving { animation: node-leave .34s cubic-bezier(.4,0,.6,1) forwards; pointer-events: none; }
+  @keyframes node-leave { to { opacity: 0; transform: translate(-50%, -50%) scale(.4); } }
   #stage .node .knob { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; position: relative;
     background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--c) 78%, #fff), color-mix(in srgb, var(--c) 35%, #2a344a));
     border: 2px solid color-mix(in srgb, var(--c) 80%, #fff); font-size: 14px; line-height: 1;
@@ -30,16 +61,74 @@
   #stage .node .num { position: absolute; right: -5px; bottom: -5px; min-width: 16px; height: 16px; padding: 0 3px;
     border-radius: 9px; background: #28323e; border: 1.5px solid var(--c); color: #fff;
     font-size: 10px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
-  /* 跨午夜接续：节点左上角月亮角标 */
-  #stage .node .moon { position: absolute; left: -7px; top: -7px; font-size: 12px; line-height: 1;
-    filter: drop-shadow(0 1px 3px rgba(40,40,90,.5)); }
-  /* full 模式（按主题总结）：节点左上角小火箭角标 */
-  #stage .node .rocket { position: absolute; left: -7px; top: -7px; font-size: 12px; line-height: 1;
-    filter: drop-shadow(0 1px 3px rgba(40,40,90,.5)); }
-  /* 月亮与火箭同时存在时，火箭下移避让 */
-  #stage .node .moon + .rocket { top: 8px; }
+  /* 节点角标（跨午夜 moon）：小圆底 chip + 描边图标，保证在彩色 knob 上可读。
+     full 模式不再用节点角标，改为下方的 .rocket-track 连续背景。 */
+  #stage .node .moon { position: absolute; left: -7px; top: -7px;
+    width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; line-height: 0;
+    box-shadow: 0 1px 4px rgba(40,40,90,.45); background: #3a3f6b; }
+  #stage .node .moon .icon { width: 10px; height: 10px; color: #fff; stroke-width: 2.4; }
+  /* full 模式「捆绑鞘」：同泳道连续 full 节点共用的可拉伸连续背景，置于节点之下，
+     把这些节点视觉上串成一体。遵循本项目液态玻璃语言：磨砂半透明 + 圆端胶囊 +
+     泳道主题色淡染 + 柔和外发光 + 贯穿的连接脊线。不用金属/写实元素。 */
+  #stage .rocket-track { position: absolute; z-index: 1; transform: translateX(-50%);
+    pointer-events: none; box-sizing: border-box;
+    /* 沿主题色的双层半透明渐变（比会话胶囊更淡），叠加玻璃底 */
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--c, #6ea8fe) 26%, transparent),
+        color-mix(in srgb, var(--c, #6ea8fe) 14%, transparent)),
+      var(--lg-bg);
+    border: 1.5px solid color-mix(in srgb, var(--c, #6ea8fe) 45%, rgba(255,255,255,.6));
+    border-radius: 999px;                       /* 两端全圆，胶囊形 */
+    backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%);
+    box-shadow:
+      0 0 20px -2px color-mix(in srgb, var(--c, #6ea8fe) 40%, transparent),   /* 外发光 */
+      var(--lg-inset);
+    transition: top .5s cubic-bezier(.2,.8,.2,1), left .5s cubic-bezier(.2,.8,.2,1),
+      height .5s cubic-bezier(.2,.8,.2,1), opacity .35s ease; }
+  #stage .rocket-track.enter { opacity: 0; }
+  #stage .rocket-track.leaving { opacity: 0; }
+  /* 柔和外发光晕：更大范围的呼吸光环，强化「被捆在一起」的整体感 */
+  #stage .rocket-track .rk-glow { position: absolute; inset: -5px; border-radius: 999px; z-index: -1;
+    background: radial-gradient(60% 40% at 50% 50%,
+      color-mix(in srgb, var(--c, #6ea8fe) 30%, transparent), transparent 72%);
+    filter: blur(6px); opacity: .8; animation: rk-breathe 3.2s ease-in-out infinite; }
+  @keyframes rk-breathe { 0%,100% { opacity: .55; } 50% { opacity: .95; } }
+  /* 贯穿脊线：胶囊中轴一条主题色实线，把段内各节点串起来（底部止于火箭图标之上） */
+  #stage .rocket-track .rk-spine { position: absolute; left: 50%; top: 12px; bottom: 52px;
+    width: 4px; transform: translateX(-50%); border-radius: 4px;
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--c, #6ea8fe) 85%, transparent),
+      color-mix(in srgb, var(--c, #6ea8fe) 55%, transparent));
+    box-shadow: 0 0 8px color-mix(in srgb, var(--c, #6ea8fe) 60%, transparent); }
+  /* 底部火箭图标：坐落在加长的鞘尾、末节点下方，不被节点遮挡；主题色描边 */
+  #stage .rocket-track .rk-ic { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+    width: 26px; height: 26px; display: grid; place-items: center; z-index: 1; }
+  #stage .rocket-track .rk-ic .icon { width: 24px; height: 24px;
+    color: color-mix(in srgb, var(--c, #6ea8fe) 78%, #2a344a); stroke-width: 2.2;
+    filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--c, #6ea8fe) 45%, transparent)); }
+  /* full 段内节点保持常规大小；只让它们更贴近（行距在 JS 中收紧） */
   #stage .node:hover .knob { transform: scale(1.16); }
-  #stage .node.active .knob { transform: scale(1.22); box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 30%, transparent), 0 0 20px var(--c); }
+  /* knob 内的 emoji 与“查看中”图标叠放居中；图标默认隐藏 */
+  #stage .node .knob-emo { transition: opacity .22s ease, transform .22s ease; }
+  #stage .node .knob-open { position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(.4); opacity: 0; pointer-events: none;
+    transition: opacity .22s ease, transform .28s cubic-bezier(.2,.9,.3,1.4); display: grid; place-items: center; }
+  #stage .node .knob-open .icon { width: 22px; height: 22px; color: #fff; stroke-width: 2.6;
+    filter: drop-shadow(0 1px 3px rgba(20,28,60,.6)); }
+  /* 选中态：knob 放大 + 主题色光环；emoji 淡出、放大的“查看中”图标盖在其上，明确此条已在右侧打开 */
+  #stage .node.active { z-index: 5; }
+  #stage .node.active .knob { transform: scale(1.28);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 34%, transparent), 0 0 22px var(--c); }
+  #stage .node.active .knob-emo { opacity: 0; transform: scale(.5); }
+  #stage .node.active .knob-open { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  /* 悬停已选中节点：勾号轻快弹跳动画（保持居中位移） */
+  #stage .node.active:hover .knob-open { animation: knob-open-bounce .6s cubic-bezier(.3,.9,.4,1.5); }
+  @keyframes knob-open-bounce {
+    0%   { transform: translate(-50%, -50%) scale(1) rotate(0); }
+    35%  { transform: translate(-50%, -50%) scale(1.32) rotate(-8deg); }
+    65%  { transform: translate(-50%, -50%) scale(1.12) rotate(5deg); }
+    100% { transform: translate(-50%, -50%) scale(1) rotate(0); } }
   /* 节点悬停气泡：单例、挂在 body 上、fixed 定位，避免被左栏 overflow 裁剪。
      由 JS 按节点位置摆放并填入标题，玻璃主题磨砂样式。 */
   .node-tip { position: fixed; z-index: 95; padding: 7px 12px; border-radius: 10px; white-space: nowrap;
@@ -53,6 +142,4 @@
   .node-tip.on { opacity: 1; transform: translateY(0); }
 
   /* 连接线：静态虚线、低透明、最底层 */
-  svg.link { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: -1; }
-  svg.link path { fill: none; stroke-width: 2; stroke-dasharray: 5 4; opacity: 0; transition: opacity .6s; }
-  svg.link path.on { opacity: .5; }
+  /* （节点↔详情连接线已移除，选中态改由 .node.active 的光环 + → 角标表达） */

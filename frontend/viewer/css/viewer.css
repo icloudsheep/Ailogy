@@ -7,12 +7,12 @@
 .month-pick b { font-variant-numeric: tabular-nums; }
 
 /* 胶囊两行 */
-/* 胶囊两行：现位于 banner 内的第二行 */
-.caps { display: flex; flex-direction: column; gap: 8px; padding-top: 8px;
+/* 胶囊两行：位于 banner 内、主行之下，用分隔线 + 加大上留白与顶层主行明确分层 */
+.caps { display: flex; flex-direction: column; gap: 12px; padding-top: 14px;
   border-top: 1px solid var(--line); }
 .cap-row { display: flex; align-items: center; gap: 10px; }
 .cap-tag { flex: none; font-size: 11px; color: var(--dim); width: 30px; }
-.cap-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.cap-list { display: flex; flex-wrap: wrap; gap: 14px; }
 .cap { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
   font-size: 12.5px; color: var(--txt); cursor: pointer; user-select: none;
   background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
@@ -76,27 +76,95 @@ html[data-mode="dark"] .f { background: rgba(200,215,255,.07); }
 mark { background: color-mix(in srgb, #ffd166 70%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 html[data-mode="dark"] mark { background: color-mix(in srgb, #ffd166 40%, transparent); }
 
-/* 日期标识：横跨整个泳道宽度的不透明圆角矩形，固定高度，位于两天交界处 */
+/* 日期标识：横跨整个泳道宽度的不透明圆角矩形，固定高度，位于两天交界处。
+   top/left/width/height/border-radius 走 transition：泳道增减导致的重排、以及
+   单/多泳道之间的形态切换（宽带 ⇄ 紧凑徽标）都平滑变形。 */
 .day-band { position: absolute; left: 0; z-index: 1; height: 32px; border-radius: 10px; box-sizing: border-box;
-  display: flex; align-items: center; padding: 0 12px; white-space: nowrap;
-  background: var(--lg-bg); border: var(--lg-border);
+  display: flex; align-items: center; padding: 0 12px; white-space: nowrap; overflow: hidden;
+  background: var(--lg-bg); border: var(--lg-border); opacity: 1; transform: none;
   backdrop-filter: blur(16px) saturate(185%); -webkit-backdrop-filter: blur(16px) saturate(185%);
-  box-shadow: 0 2px 10px -4px rgba(30,40,70,.3); }
+  box-shadow: 0 1px 5px -3px rgba(30,40,70,.3);
+  transition: top .5s cubic-bezier(.2,.8,.2,1), left .5s cubic-bezier(.2,.8,.2,1),
+    width .5s cubic-bezier(.2,.8,.2,1), height .5s cubic-bezier(.2,.8,.2,1),
+    border-radius .5s ease, padding .5s ease,
+    opacity .35s ease, transform .35s cubic-bezier(.2,.9,.3,1.2); }
 .day-band::before { content: ""; display: inline-block; width: 5px; height: 20px; border-radius: 3px;
   background: var(--day-c, #7884a0); margin-right: 8px; flex: none; }
 .day-band-label { font-size: 15px; font-weight: 650; color: var(--title-color);
   font-variant-numeric: tabular-nums; line-height: 1; }
+/* 单泳道紧凑徽标：保留玻璃圆角矩形背景，内部竖排 横向色胶囊 + 天数字，居中于窄列。
+   宽/高由 JS 显式设置（便于 transition 变形）；这里只管布局与更圆的边角。 */
+.day-band.solo { left: 6px; border-radius: 16px; padding: 0;
+  flex-direction: column; justify-content: center; gap: 5px; }
+.day-band.solo::before { display: none; }
+.day-band-pill { width: 26px; height: 8px; border-radius: 999px; flex: none;
+  background: var(--day-c, #7884a0); box-shadow: 0 0 10px var(--day-c, #7884a0); }
+.day-band-num { font-size: 13px; font-weight: 700; color: var(--title-color);
+  font-variant-numeric: tabular-nums; line-height: 1; }
+/* 拟态主题：时间标识改用拟态双向投影获得凸起立体感（减半强度），而非玻璃的扁平投影；
+   拟态需要不透明表面，关掉磨砂模糊 */
+html[data-style="neumorphism"] .day-band {
+  border: 1px solid transparent;
+  box-shadow: 3px 3px 7px var(--neu-dark), -3px -3px 7px var(--neu-light);
+  backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* 暗色模式（玻璃/报纸）：原投影在深底上几乎不可见，换成外发光暗影 + 顶部高光描边（减半） */
+html[data-mode="dark"] .day-band {
+  border-color: rgba(180,195,235,.16);
+  box-shadow: 0 2px 7px -3px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.12); }
+/* 暗色 + 拟态：沿用拟态双向投影（深色变量已含亮/暗两侧，减半） */
+html[data-mode="dark"][data-style="neumorphism"] .day-band {
+  box-shadow: 3px 3px 7px var(--neu-dark), -3px -3px 7px var(--neu-light); }
+/* 时间标识 进入/离开：淡入缩放 */
+.day-band.enter { opacity: 0; transform: scale(.9); }
+.day-band.leaving { opacity: 0; transform: scale(.9); pointer-events: none; }
 /* 节点/泳道线在色带之上 */
 #stage .node { z-index: 3; }
 svg.rails { z-index: 1; }
 
-/* 改色模态 */
-.sw-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 14px 0; }
-.sw { width: 100%; aspect-ratio: 1; border-radius: 10px; border: 2px solid rgba(255,255,255,.6);
-  cursor: pointer; box-shadow: 0 2px 8px -2px rgba(40,50,90,.4); transition: transform .15s; }
-.sw:hover { transform: scale(1.1); }
+/* 改色模态：60 色调色盘，10 列小色块。
+   内边距给 hover 放大留出余量——否则边缘/首行色块 scale 后越界，会触发滚动条并被裁切。 */
+.sw-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; margin: 14px 0;
+  padding: 8px; max-height: 44vh; overflow-y: auto; }
+.sw { width: 100%; aspect-ratio: 1; border-radius: 7px; border: 2px solid rgba(255,255,255,.6);
+  cursor: pointer; box-shadow: 0 1px 5px -2px rgba(40,50,90,.4);
+  transition: transform .15s, box-shadow .2s, border-color .2s;
+  display: grid; place-items: center; padding: 0; position: relative; }
+.sw:hover { transform: scale(1.18); z-index: 1; }
+.sw.on { border-color: #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--txt) 55%, transparent), 0 2px 8px -2px rgba(40,50,90,.5); }
+.sw .icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 15px; height: 15px; color: #fff; stroke-width: 3; vertical-align: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
+/* 自定义颜色：默认展示彩虹色轮（提示可自定义）；命中自定义色时展示该色并打对号 */
 .sw-custom { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim); }
-.sw-input { width: 48px; height: 30px; border: none; background: none; cursor: pointer; }
+.sw-cus-box { position: relative; width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  border: 2px solid rgba(255,255,255,.6); box-shadow: 0 1px 5px -2px rgba(40,50,90,.4);
+  display: grid; place-items: center; overflow: hidden;
+  transition: box-shadow .2s, border-color .2s;
+  background: conic-gradient(from 0deg, #fa5f5f, #faac5f, #fafa5f, #5ffa5f, #5ffafa, #5f5ffa, #ac5ffa, #fa5ffa, #fa5f5f); }
+.sw-cus-box:hover { border-color: #fff; }
+.sw-cus-box.on { background: var(--cus, #6ea8fe); border-color: #fff;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--txt) 55%, transparent), 0 2px 8px -2px rgba(40,50,90,.5); }
+.sw-cus-box .icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 16px; height: 16px; color: #fff; stroke-width: 3; vertical-align: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); pointer-events: none; }
+/* 选中对号弹入动画 */
+.sw .icon.pick-pop, .sw-cus-box .icon.pick-pop { animation: pick-pop .32s cubic-bezier(.2,.9,.3,1.5); }
+@keyframes pick-pop {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  60% { transform: translate(-50%, -50%) scale(1.35); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+/* 隐藏原生 color input 的默认外观与内边距（否则其自带色块会从色轮里透出、看似裁切），
+   设为透明铺满，仅作点击热区调起系统取色器。 */
+.sw-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: none;
+  background: none; cursor: pointer; padding: 0;
+  -webkit-appearance: none; appearance: none; }
+.sw-input::-webkit-color-swatch-wrapper { padding: 0; }
+.sw-input::-webkit-color-swatch { border: none; }
+
+/* #feed：全局空态容器。空时不占位（不撑破 .wrap 弹性行）；有内容时占满整行居中。 */
+#feed:empty { display: none; }
+#feed { flex: 1; min-width: 0; }
 
 /* 居中空态（无任何内容时） */
 .empty-center { min-height: 50vh; display: flex; flex-direction: column; align-items: center;

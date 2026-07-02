@@ -1,6 +1,7 @@
 
-  /* 右侧：拆成多个液态玻璃框，纵向堆叠 */
-  .box { position: relative; overflow: hidden; background: var(--lg-bg); border: var(--lg-border); border-radius: 16px;
+  /* 右侧：拆成多个液态玻璃框，纵向堆叠。
+     flex: none —— 在 .right 弹性列里保持各框自然高度、不被压缩，内容超出时容器才溢出滚动。 */
+  .box { flex: none; position: relative; overflow: hidden; background: var(--lg-bg); border: var(--lg-border); border-radius: 16px;
     padding: 16px 20px; backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
     box-shadow: 0 14px 38px -22px rgba(40,50,90,.5), var(--lg-inset);
     transition: opacity .28s ease, transform .28s cubic-bezier(.2,.8,.2,1); }
