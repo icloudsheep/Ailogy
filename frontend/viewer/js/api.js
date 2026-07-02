@@ -17,9 +17,12 @@ async function _send(method, path, body) {
 }
 
 const API = {
-  // 某月泳道时间线（默认当月）；devices 为 null=全部，[]=无，数组=指定设备
-  timeline: (month, devices) => {
-    const params = { month };
+  // 泳道时间线。month 模式：传 month；recent 模式：传 {recent:N}（最近 N 天）。
+  // devices 为 null=全部，[]=无，数组=指定设备。
+  timeline: (opts, devices) => {
+    const params = {};
+    if (opts && opts.recent) params.recent = opts.recent;
+    else params.month = (opts && opts.month) || opts;   // 兼容旧调用 timeline(month, devices)
     if (Array.isArray(devices)) params.devices = devices.join(",");
     return _get("/api/timeline", params);
   },

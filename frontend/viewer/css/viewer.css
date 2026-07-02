@@ -1,6 +1,36 @@
 /* viewer 专属：月份按钮、天/会话胶囊两行、泳道天分隔、详情面板。
    主题/背景/toast/菜单/模态来自 theme.css；节点/泳道线来自 timeline.css；markdown 来自 markdown.css。 */
 
+/* ── 视图外更新提示条：顶栏正下方、浅绿(随主题)、高度渐变展开/收起 ── */
+.update-notice { position: fixed; left: 0; right: 0; top: var(--topbar-h, 150px); z-index: 18;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 clamp(16px,4vw,48px); box-sizing: border-box;
+  max-height: 0; overflow: hidden; opacity: 0;
+  /* 浅绿底：由主题绿与玻璃底混合，随 6 主题/明暗自适应 */
+  background: color-mix(in srgb, var(--notice-green) 22%, var(--lg-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--notice-green) 45%, transparent);
+  backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
+  color: var(--txt);
+  transition: max-height .42s cubic-bezier(.2,.8,.2,1), opacity .32s ease, padding .42s ease;
+  pointer-events: none; }
+.update-notice.show { max-height: 56px; opacity: 1; padding-top: 9px; padding-bottom: 9px; pointer-events: auto; }
+.update-notice .un-dot { flex: none; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--notice-green); box-shadow: 0 0 8px var(--notice-green);
+  animation: un-pulse 1.6s ease-in-out infinite; }
+@keyframes un-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+.update-notice .un-text { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: color-mix(in srgb, var(--notice-green) 55%, var(--txt)); font-weight: 600; }
+.update-notice .un-btn { flex: none; font: inherit; font-size: 12.5px; font-weight: 700;
+  padding: 5px 14px; border-radius: 999px; cursor: pointer; border: none; transition: transform .15s, filter .2s, background .2s; }
+.update-notice .un-btn:hover { transform: translateY(-1px); }
+.update-notice .un-view { color: #fff;
+  background: linear-gradient(120deg, var(--notice-green), color-mix(in srgb, var(--notice-green) 60%, #2ea86a));
+  box-shadow: 0 6px 16px -7px var(--notice-green); }
+.update-notice .un-view:hover { filter: brightness(1.08); }
+.update-notice .un-dismiss { color: var(--dim); background: color-mix(in srgb, var(--txt) 8%, transparent); }
+.update-notice .un-dismiss:hover { color: var(--txt); background: color-mix(in srgb, var(--txt) 14%, transparent); }
+
 /* 月份选择按钮（在 header 槽内） */
 .month-pick { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; cursor: pointer;
   border: var(--lg-border); background: var(--lg-bg); color: var(--txt); box-shadow: var(--lg-inset); }

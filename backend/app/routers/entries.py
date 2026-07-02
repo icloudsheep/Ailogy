@@ -96,15 +96,18 @@ def search(
 @router.get("/timeline")
 def timeline(
     month: str = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    recent: int = Query(None, ge=1, le=366, description="最近 N 天模式；给出则忽略 month"),
     devices: str = Query(None, description="逗号分隔的设备名；省略=全部"),
     db: Session = Depends(get_db),
 ):
     import datetime as _dt
-    m = month or _dt.date.today().strftime("%Y-%m")
     dev_list = None
     if devices is not None:
         dev_list = [d for d in devices.split(",")] if devices != "" else []
-    return {"month": m, "items": repo.list_month(db, m, dev_list)}
+    if recent:
+        return {"mode": "recent", "recent": recent, "items": repo.list_recent(db, recent, dev_list)}
+    m = month or _dt.date.today().strftime("%Y-%m")
+    return {"mode": "month", "month": m, "items": repo.list_month(db, m, dev_list)}
 
 
 @router.get("/months")

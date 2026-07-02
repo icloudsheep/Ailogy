@@ -234,6 +234,26 @@ def list_month(db, month, devices=None):
     return [_row_to_dict(r) for r in rows]
 
 
+def list_recent(db, days=30, devices=None):
+    """取最近 N 天（含今天）的条目；devices 语义同 list_month（None=全部，[]=空结果）。"""
+    if devices is not None and len(devices) == 0:
+        return []
+    import datetime as _dt
+    since = (_dt.date.today() - _dt.timedelta(days=days - 1)).strftime("%Y-%m-%d")
+    params = {"since": since}
+    where = "day >= :since"
+    if devices is not None:
+        ph = ", ".join(f":d{i}" for i in range(len(devices)))
+        where += f" AND COALESCE(device,'') IN ({ph})"
+        for i, d in enumerate(devices):
+            params[f"d{i}"] = d
+    rows = db.execute(text(
+        f"SELECT {_COLS} FROM entries WHERE {where} "
+        "ORDER BY datetime ASC, id ASC"
+    ), params).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
 def list_months(db):
     rows = db.execute(text(
         "SELECT DISTINCT substr(day,1,7) AS m FROM entries ORDER BY m DESC"

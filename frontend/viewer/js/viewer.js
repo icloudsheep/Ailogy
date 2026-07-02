@@ -26,7 +26,9 @@ function colorOf(code) {
 // 会话：hiddenSessions（用户显式隐藏，负向）。灰态由「是否出现在可见天」派生。
 // 设备：devices（全部）、selectedDevices（当前筛选，null=全部）。
 const ST = {
+  mode: "recent",         // "recent"(最近30天，默认) | "month"
   month: null,
+  recentDays: 30,
   entries: [],
   sessions: [],
   days: [],
@@ -40,30 +42,41 @@ const ST = {
 const $ = (id) => document.getElementById(id);
 const ROW_H = 64, COL_W = 60, COL_X0 = 30, TOP_PAD = 24;
 
-// ── 选择器状态固化（localStorage，按月）──
+// ── 选择器状态固化（localStorage，按“视图键”）──
+// 视图键：recent 模式用 "recent"，month 模式用月份串。这样最近30天与各月各自独立记忆。
 const SEL_KEY = "ailogy:selection";
+const VIEW_KEY = "ailogy:view";        // 记住上次的视图（mode + month），跨刷新恢复
+function viewKey() { return ST.mode === "recent" ? "recent" : ST.month; }
 function loadSel() { try { return JSON.parse(localStorage.getItem(SEL_KEY) || "{}") || {}; } catch (_) { return {}; } }
 function saveSel() {
   const all = loadSel();
-  all[ST.month] = {
+  all[viewKey()] = {
     days: [...(ST.selectedDays || [])],
     hidden: [...(ST.hiddenSessions || [])],
     devices: ST.selectedDevices ? [...ST.selectedDevices] : null,
   };
   try { localStorage.setItem(SEL_KEY, JSON.stringify(all)); } catch (_) {}
+  // 同时固化“上次视图”，刷新后回到同一模式/月份
+  try { localStorage.setItem(VIEW_KEY, JSON.stringify({ mode: ST.mode, month: ST.month })); } catch (_) {}
 }
+function loadView() { try { return JSON.parse(localStorage.getItem(VIEW_KEY) || "null"); } catch (_) { return null; } }
 
-// ── 拉取当月数据并构建 ──
-async function loadMonth(month, keepSel) {
+// ── 拉取数据并构建（统一处理 recent / month 两种模式）──
+// opts: { recent: N }（最近 N 天）或 { month: "YYYY-MM" }；不传则沿用当前 ST.mode/ST.month。
+async function loadView(opts, keepSel) {
+  // 先根据 opts 落定模式（在拉取前更新 ST.mode/month，使 viewKey 正确）
+  if (opts && opts.recent) { ST.mode = "recent"; ST.recentDays = opts.recent; }
+  else if (opts && opts.month) { ST.mode = "month"; ST.month = opts.month; }
   try {
     const devs = ST.selectedDevices ? [...ST.selectedDevices] : null;
-    const r = await API.timeline(month, devs);
-    ST.month = r.month || month;
+    const q = ST.mode === "recent" ? { recent: ST.recentDays } : { month: ST.month };
+    const r = await API.timeline(q, devs);
+    if (r.mode === "month" && r.month) ST.month = r.month;
     ST.entries = r.items;
     _lastSig = _entriesSig(r.items);   // 记录基线指纹，供静默轮询比对
     buildModel();
-    // 恢复固化的选择器状态（仅当本月有保存且 keepSel）
-    const saved = loadSel()[ST.month];
+    // 恢复固化的选择器状态（仅当该视图有保存且 keepSel）
+    const saved = loadSel()[viewKey()];
     if (keepSel && saved) {
       const validDays = new Set(ST.days.map((d) => d.day));
       ST.selectedDays = new Set((saved.days || []).filter((d) => validDays.has(d)));
@@ -73,10 +86,10 @@ async function loadMonth(month, keepSel) {
       ST.selectedDays = new Set(ST.days.map((d) => d.day));
       ST.hiddenSessions = new Set();
     }
-    if (ST.sessions.length) {
-      $("feed").innerHTML = "";
-    }
-    closeDetail();  // 刷新即重置所有节点状态：清除高亮/详情/连接线，避免节点仍呈打开态而详情已关
+    if (ST.sessions.length) $("feed").innerHTML = "";
+    updateViewLabel();
+    saveSel();          // 记住当前视图（mode/month）+ 选择器状态
+    closeDetail();      // 重置节点状态
     render();
   } catch (err) {
     ST.entries = []; ST.sessions = []; ST.days = [];
@@ -86,6 +99,13 @@ async function loadMonth(month, keepSel) {
     $("detail").innerHTML = "";
     showToast("加载失败：" + err.message, { type: "err" });
   }
+}
+// 兼容旧调用：loadMonth(month, keepSel) → 切到 month 模式
+async function loadMonth(month, keepSel) { return loadView({ month }, keepSel); }
+// 顶部月份/模式按钮文案
+function updateViewLabel() {
+  const el = $("month-label");
+  if (el) el.textContent = ST.mode === "recent" ? "最近30天" : (ST.month || "");
 }
 
 // ── 静默轮询自动更新 ──
@@ -102,45 +122,119 @@ function _entriesSig(items) {
 async function pollUpdate() {
   if (document.hidden) return;
   try {
-    // 当前无月份（库为空或首条尚未出现）：探测月份，出现数据则载入最新月
-    if (!ST.month) {
-      const mr = await API.months();
-      const m = (mr.months || [])[0];
-      if (!m) return;
-      ST.month = m;
-      try { const dr = await API.devices(); ST.devices = dr.devices || []; updateDeviceLabel(); } catch (_) {}
-      await loadMonth(ST.month, true);
-      return;
+    // 库为空/首条未现：探测数据出现则以默认（最近30天）载入
+    if (!ST.entries.length && !ST.month && ST.mode === "recent" && !_bootstrapped) {
+      // 交由 initViewer 首载；此分支只在极端空态兜底
     }
-    const devs = ST.selectedDevices ? [...ST.selectedDevices] : null;
-    const r = await API.timeline(ST.month, devs);
-    const sig = _entriesSig(r.items);
-    if (sig === _lastSig) return;               // 无变化：不动
-    _lastSig = sig;
-    ST.entries = r.items;
-    buildModel();
-    const validDays = new Set(ST.days.map((d) => d.day));
-    if (ST.selectedDays) {
-      ST.selectedDays = new Set([...ST.selectedDays].filter((d) => validDays.has(d)));
-      if (!ST.selectedDays.size) ST.selectedDays = new Set(ST.days.map((d) => d.day));
-    } else ST.selectedDays = new Set(ST.days.map((d) => d.day));
-    if (!ST.hiddenSessions) ST.hiddenSessions = new Set();
-    _lastCapsHash = "";                          // 天/会话可能变化，强制胶囊重绘
-    render();                                    // 复用式渲染：变化走 CSS 动画
-    // 展开中的详情：条目仍在则用最新数据刷新，否则关闭
-    if (ST.active && ST.active.dataset) {
-      const cur = ST.entries.find((e) => String(e.id) === ST.active.dataset.id);
-      const node = document.querySelector(`#stage .node[data-id="${attrEsc(ST.active.dataset.id)}"]`);
-      if (cur && node) selectNodeDetail(cur, node); else closeDetail();
+    // 轮询始终拉「最近30天 + 全部设备」的全量，用于：① 刷新当前视图 ② 侦测视图外的新更新
+    const full = await API.timeline({ recent: Math.max(ST.recentDays, 30) }, null);
+    const allItems = full.items || [];
+    // 探测设备变化（新设备上报）
+    detectDeviceChanges(allItems);
+    // 当前视图应显示的子集
+    const inView = allItems.filter(isInCurrentView);
+    const sig = _entriesSig(inView);
+    if (sig !== _lastSig) {
+      _lastSig = sig;
+      ST.entries = inView;
+      buildModel();
+      const validDays = new Set(ST.days.map((d) => d.day));
+      if (ST.selectedDays) {
+        ST.selectedDays = new Set([...ST.selectedDays].filter((d) => validDays.has(d)));
+        if (!ST.selectedDays.size) ST.selectedDays = new Set(ST.days.map((d) => d.day));
+      } else ST.selectedDays = new Set(ST.days.map((d) => d.day));
+      if (!ST.hiddenSessions) ST.hiddenSessions = new Set();
+      _lastCapsHash = "";
+      render();
+      if (ST.active && ST.active.dataset) {
+        const cur = ST.entries.find((e) => String(e.id) === ST.active.dataset.id);
+        const node = document.querySelector(`#stage .node[data-id="${attrEsc(ST.active.dataset.id)}"]`);
+        if (cur && node) selectNodeDetail(cur, node); else closeDetail();
+      }
+      if (typeof refreshScrollbars === "function") refreshScrollbars();
     }
-    if (typeof refreshScrollbars === "function") refreshScrollbars();
+    // 侦测「视图外」的新条目 → 提示 banner
+    detectOutOfViewUpdates(allItems);
   } catch (_) { /* 网络抖动忽略，下次再试 */ }
+}
+// 某条目是否落在当前视图（模式/月份 + 已选设备）内
+function isInCurrentView(e) {
+  // 设备过滤
+  if (ST.selectedDevices && !ST.selectedDevices.has(e.device || "")) return false;
+  // 范围过滤
+  if (ST.mode === "month") return (e.day || "").slice(0, 7) === ST.month;
+  return true;  // recent 模式：全量已是最近30天
 }
 function startPolling(ms) {
   if (_pollTimer) clearInterval(_pollTimer);
   _pollTimer = setInterval(pollUpdate, ms || 5000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) pollUpdate(); });
 }
+let _bootstrapped = false;
+
+// ── 视图外更新提示 banner ──
+// 轮询发现「当前未选设备 / 当前范围之外」出现新条目时，在顶栏下方弹出浅绿提示条：
+// 一行概要（省略号截断）+ 查看 / 忽略。查看 = 跳转到该条（同搜索结果点击）。
+let _knownIds = null;              // 已知条目 id 全集（首轮建立基线，不提示历史）
+let _pendingNotice = null;         // 当前待提示的新条目（取最新一条作代表）
+let _dismissedIds = new Set();     // 用户点“忽略”过的 id，不再提示
+function detectDeviceChanges(allItems) {
+  const devs = [...new Set(allItems.map((e) => e.device || ""))];
+  // 合并进 ST.devices（保持已有 + 新增），供设备选择器展示
+  let changed = false;
+  devs.forEach((d) => { if (!ST.devices.includes(d)) { ST.devices.push(d); changed = true; } });
+  if (changed) updateDeviceLabel();
+}
+function detectOutOfViewUpdates(allItems) {
+  if (_knownIds === null) {          // 首轮：建立基线，不把已有数据当“新更新”
+    _knownIds = new Set(allItems.map((e) => String(e.id)));
+    return;
+  }
+  // 新出现（id 未见过）且不在当前视图、未被忽略的条目
+  const fresh = allItems.filter((e) => {
+    const id = String(e.id);
+    return !_knownIds.has(id) && !isInCurrentView(e) && !_dismissedIds.has(id);
+  });
+  // 更新已知集合（把所有当前 id 记入，避免下轮重复提示）
+  allItems.forEach((e) => _knownIds.add(String(e.id)));
+  if (!fresh.length) return;
+  // 取最新一条作代表（按 datetime）
+  fresh.sort((a, b) => (a.datetime < b.datetime ? 1 : -1));
+  showUpdateNotice(fresh, fresh[0]);
+}
+function showUpdateNotice(freshList, rep) {
+  _pendingNotice = rep;
+  const bar = $("update-notice");
+  if (!bar) return;
+  const dev = rep.device || "未标注设备";
+  const where = ST.mode === "month" ? "其它范围" : (ST.selectedDevices ? "未选设备" : "其它范围");
+  const extra = freshList.length > 1 ? ` 等 ${freshList.length} 条` : "";
+  const title = rep.title || sessDisplay(rep.session_code, rep.name) || "新日志";
+  $("update-notice-text").textContent = `${dev} · ${title}${extra}`;
+  bar.classList.add("show");
+}
+function hideUpdateNotice() {
+  const bar = $("update-notice");
+  if (bar) bar.classList.remove("show");
+  _pendingNotice = null;
+}
+function viewUpdateNotice() {
+  const e = _pendingNotice;
+  hideUpdateNotice();
+  if (!e) return;
+  // 若该条属于某设备而当前把它过滤掉了，先把设备并入可见集合
+  if (ST.selectedDevices && !ST.selectedDevices.has(e.device || "")) {
+    ST.selectedDevices.add(e.device || "");
+    if (ST.selectedDevices.size >= ST.devices.length) ST.selectedDevices = null;
+    updateDeviceLabel(); saveSel();
+  }
+  focusEntry(e);   // 与搜索结果点击一致：切范围/天/会话 + 定位 + 展开
+}
+function dismissUpdateNotice() {
+  if (_pendingNotice) _dismissedIds.add(String(_pendingNotice.id));
+  hideUpdateNotice();
+}
+
 
 function buildModel() {
   // 收集服务端颜色覆盖（先清空，只保留当前月条目的颜色，避免跨月累积）
@@ -209,7 +303,7 @@ function render() {
   const caps = $("header-row2");
   const hasSessions = ST.sessions.length > 0;
   if (caps) caps.hidden = !hasSessions;
-  $("month-label").textContent = ST.month || "";
+  updateViewLabel();
   if (!hasSessions) { renderEmpty(); return; }
   const capHash = _capsHash();
   if (capHash !== _lastCapsHash) { _lastCapsHash = capHash; renderCapsules(); }
@@ -775,14 +869,18 @@ function clearDetailIfGone() {
 }
 
 async function focusEntry(e) {
-  const month = (e.day || e.datetime || "").slice(0, 7);
-  if (month && month !== ST.month) await loadMonth(month, false);
+  // 若该条已在当前视图内则不切范围；否则切到其所在月
+  const already = ST.entries.some((x) => String(x.id) === String(e.id));
+  if (!already) {
+    const month = (e.day || e.datetime || "").slice(0, 7);
+    if (month) await loadView({ month }, false);
+  }
   ST.selectedDays = new Set([e.day]);
   ST.hiddenSessions = new Set(
     ST.sessions.map((s) => s.code).filter((c) => c !== e.session_code));
   saveSel();
   render();
-  const node = document.querySelector(`#stage .node[data-id="${e.id}"]`);
+  const node = document.querySelector(`#stage .node[data-id="${attrEsc(String(e.id))}"]`);
   if (node) { selectNode(e, node); node.scrollIntoView({ behavior: "smooth", block: "center" }); }
   else showToast("已跳转，但未定位到该条节点", { title: "搜索" });
 }
@@ -842,15 +940,23 @@ function showTip(node) {
   _tipEl.style.left = x + "px"; _tipEl.style.top = y + "px";
 }
 
-// ── 月份选择 ──
+// ── 月份 / 模式选择 ──
 async function openMonthPicker(ev) {
   let months = [];
   try { months = (await API.months()).months; } catch (_) {}
-  if (!months.length) { showToast("暂无历史月份", { title: "月份" }); return; }
-  openMenu(ev, { head: "选择月份", items: months.map((m) => ({
-    label: m, check: m === ST.month,
-    act: () => { if (m === ST.month) { closeMenu(); return; } loadMonth(m, true); },
-  })) });
+  const items = [
+    // 最近30天：置顶、默认模式
+    { label: "最近 30 天", check: ST.mode === "recent",
+      act: () => { if (ST.mode === "recent") { closeMenu(); return; } loadView({ recent: 30 }, true); } },
+  ];
+  if (months.length) {
+    items.push({ sep: true });
+    months.forEach((m) => items.push({
+      label: m, check: ST.mode === "month" && m === ST.month,
+      act: () => { if (ST.mode === "month" && m === ST.month) { closeMenu(); return; } loadView({ month: m }, true); },
+    }));
+  }
+  openMenu(ev, { head: "选择范围", items });
 }
 
 // ── 设备选择（多选 + 全选）──
@@ -893,7 +999,11 @@ function openDevicePicker(ev) {
   ];
   openMenu(ev, { head: "设备筛选（多选）", items });
 }
-function reloadKeepMonth() { closeMenu(); loadMonth(ST.month, true); updateDeviceLabel(); }
+function reloadKeepMonth() {
+  closeMenu();
+  loadView(ST.mode === "recent" ? { recent: ST.recentDays } : { month: ST.month }, true);
+  updateDeviceLabel();
+}
 function updateDeviceLabel() {
   const el = $("device-label");
   if (!el) return;
@@ -972,6 +1082,10 @@ async function initViewer() {
   $("month-pick").onclick = openMonthPicker;
   const devPick = $("device-pick");
   if (devPick) devPick.onclick = openDevicePicker;
+  // 更新提示 banner 的查看/忽略
+  const nv = $("update-notice-view"), nd = $("update-notice-dismiss");
+  if (nv) nv.onclick = viewUpdateNotice;
+  if (nd) nd.onclick = dismissUpdateNotice;
   const left = $("left");
   if (left) left.addEventListener("scroll", () => { cancelTip(); }, { passive: true });
   const right = $("detail");
@@ -980,19 +1094,22 @@ async function initViewer() {
   bindGlobalMenu();
   initDebugTag("front/viewer");
   try {
-    const [mr, dr] = await Promise.all([API.months(), API.devices()]);
-    ST.month = (mr.months || [])[0] || null;
+    const dr = await API.devices();
     ST.devices = dr.devices || [];
-  } catch (_) { ST.month = null; }
-  // 恢复设备筛选
-  const savedSel = ST.month ? loadSel()[ST.month] : null;
+  } catch (_) {}
+  // 恢复上次视图（默认最近30天）
+  const v = loadView();
+  if (v && v.mode === "month" && v.month) { ST.mode = "month"; ST.month = v.month; }
+  else { ST.mode = "recent"; ST.recentDays = 30; }
+  // 恢复该视图的设备筛选
+  const savedSel = loadSel()[viewKey()];
   if (savedSel && Array.isArray(savedSel.devices)) {
     ST.selectedDevices = new Set(savedSel.devices.filter((d) => ST.devices.includes(d)));
     if (!ST.selectedDevices.size || ST.selectedDevices.size === ST.devices.length) ST.selectedDevices = null;
   }
   updateDeviceLabel();
-  if (!ST.month) { renderEmpty(); startPolling(5000); return; }
-  await loadMonth(ST.month, true);
-  startPolling(5000);   // 启动静默轮询：后端增删改查后自动就地动画更新，无需刷新
+  _bootstrapped = true;
+  await loadView(ST.mode === "recent" ? { recent: ST.recentDays } : { month: ST.month }, true);
+  startPolling(5000);   // 静默轮询：就地动画更新 + 视图外更新提示
 }
 window.addEventListener("DOMContentLoaded", initViewer);

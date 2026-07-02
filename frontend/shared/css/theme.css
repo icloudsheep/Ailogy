@@ -10,6 +10,7 @@
     --title-color: #131a2c;
     --font: -apple-system, "SF Pro", "PingFang SC", Segoe UI, sans-serif;
     --bg-anim: huewash 40s ease-in-out infinite;  /* 仅玻璃流动；其余 none */
+    --notice-green: #2ea86a;   /* 更新提示强调绿；浅绿底由它 color-mix 得到，随主题/明暗变化 */
   }
 
   /* 图标（SVG symbol sprite，见 shared/js/icons.js）：随文字颜色/字号自适应，替代原 UI emoji。
@@ -21,6 +22,7 @@
   html[data-mode="dark"] {
     --line: rgba(180,195,235,.16); --txt: #e7ecf8; --dim: #9aa7c8;
     --title-color: #f5f7fc;
+    --notice-green: #5fe0a0;   /* 暗色下提亮 */
     --lg-bg: linear-gradient(135deg, rgba(26,32,52,.74), rgba(16,20,36,.6));
     --lg-border: 1px solid rgba(150,170,225,.2);
     --lg-inset: inset 0 1px 0 rgba(180,200,255,.14), inset 0 -1px 3px rgba(0,0,0,.45); }
