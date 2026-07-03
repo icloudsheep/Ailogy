@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ailogy · 智能</title>
+<script>
+  try {
+    document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
+    document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
+    document.documentElement.setAttribute("data-anim", localStorage.getItem("ailogy:anim") || "default");
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="/static/vendor/katex/katex.min.css"
+      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';">
+<link rel="stylesheet" href="/static/frontend/shared/css/theme.css">
+<link rel="stylesheet" href="/static/frontend/shared/css/markdown.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/timeline.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/detail.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/viewer.css">
+</head>
+<body class="viewer-page">
+<div class="bg"></div>
+
+<header id="app-header" data-icon="sparkles" data-title="智能">
+  <button id="device-pick" class="month-pick"><svg class="icon" aria-hidden="true"><use href="#i-laptop"></use></svg> <b id="device-label">全部设备</b></button>
+  <div class="search-box"><input id="search-input" type="text" placeholder="搜索 AI 洞察…" spellcheck="false" /></div>
+  <!-- 第二行：主题选择器（无洞察时整体隐藏）。AI 侧按「设备 + 主题」分类，不再有天/会话两级 -->
+  <div id="header-row2" class="caps" hidden>
+    <div class="cap-row"><span class="cap-tag">主题</span><div id="cap-topics" class="cap-list"></div></div>
+  </div>
+</header>
+
+<!-- 泳道 + 详情（复用 viewer 布局） -->
+<div class="wrap">
+  <div class="left" id="left"><div class="stage" id="stage"></div></div>
+  <div class="right" id="detail"><div class="box empty"><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> 点击左侧节点查看该条洞察</div></div>
+  <main id="feed"></main>
+</div>
+
+<script src="/static/vendor/mermaid.min.js"
+  onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';s.onload=function(){window.__mermaidReady&&window.__mermaidReady()};document.head.appendChild(s);"></script>
+<script src="/static/vendor/katex/katex.min.js"
+  onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';s.onload=function(){window.__katexReady&&window.__katexReady()};document.head.appendChild(s);"></script>
+
+<script src="/static/frontend/shared/js/utils.js"></script>
+<script src="/static/frontend/shared/js/icons.js"></script>
+<script src="/static/frontend/shared/js/markdown.js"></script>
+<script src="/static/frontend/shared/js/mermaid.js"></script>
+<script src="/static/frontend/shared/js/katex.js"></script>
+<script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/header.js"></script>
+<script src="/static/frontend/shared/js/page-nav.js"></script>
+<script src="/static/frontend/viewer/js/aliases.js"></script>
+<script src="/static/frontend/ai/js/ai.js"></script>
+</body>
+</html>

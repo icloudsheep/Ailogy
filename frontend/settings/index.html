@@ -17,46 +17,152 @@
 <body>
 <div class="bg"></div>
 <header id="app-header" data-icon="gear" data-title="设置"></header>
-<main class="wrap">
-  <section class="box">
-    <div class="bt">外观风格</div>
-    <div class="opt-row" id="style-row">
-      <button class="opt" data-style="glass"><svg class="icon" aria-hidden="true"><use href="#i-glass"></use></svg> 玻璃</button>
-      <button class="opt" data-style="neumorphism"><svg class="icon" aria-hidden="true"><use href="#i-cube"></use></svg> 拟态</button>
-      <button class="opt" data-style="newspaper"><svg class="icon" aria-hidden="true"><use href="#i-newspaper"></use></svg> 报纸</button>
+
+<!-- iPad 式主从布局：左侧大类导航，右侧对应项目面板 -->
+<main class="settings-shell">
+  <nav class="settings-nav" id="settings-nav">
+    <button class="snav on" data-cat="style"><svg class="icon" aria-hidden="true"><use href="#i-glass"></use></svg> <span>样式</span></button>
+    <button class="snav" data-cat="viewer"><svg class="icon" aria-hidden="true"><use href="#i-waves"></use></svg> <span>日志</span></button>
+    <button class="snav" data-cat="ai"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg> <span>智能</span></button>
+  </nav>
+
+  <div class="settings-panels">
+    <!-- 样式：外观风格 / 明暗 / 动画速率 -->
+    <div class="wrap settings-panel on" data-cat="style">
+      <section class="box">
+        <div class="bt">外观风格</div>
+        <div class="opt-row" id="style-row">
+          <button class="opt" data-style="glass"><svg class="icon" aria-hidden="true"><use href="#i-glass"></use></svg> 玻璃</button>
+          <button class="opt" data-style="neumorphism"><svg class="icon" aria-hidden="true"><use href="#i-cube"></use></svg> 拟态</button>
+          <button class="opt" data-style="newspaper"><svg class="icon" aria-hidden="true"><use href="#i-newspaper"></use></svg> 报纸</button>
+        </div>
+      </section>
+      <section class="box">
+        <div class="bt">明暗模式</div>
+        <div class="opt-row" id="mode-row">
+          <button class="opt" data-mode="light"><svg class="icon" aria-hidden="true"><use href="#i-sun"></use></svg> 光明</button>
+          <button class="opt" data-mode="dark"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg> 黑暗</button>
+        </div>
+      </section>
+      <section class="box">
+        <div class="bt">动画速率
+          <span class="bt-info" tabindex="0" aria-label="动画速率说明"
+                data-tip="控制全站过渡与动效的快慢：「优雅」最慢、从容舒展；「默认」适中；「极速」最快、干脆利落。仅影响动画时长，不改变任何功能。若系统开启了「减少动态效果」，动画会自动近乎关闭。">
+            <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+          </span>
+        </div>
+        <div class="opt-row" id="anim-row">
+          <button class="opt" data-anim="graceful">优雅</button>
+          <button class="opt" data-anim="default">默认</button>
+          <button class="opt" data-anim="rapid">极速</button>
+        </div>
+      </section>
     </div>
-  </section>
-  <section class="box">
-    <div class="bt">明暗模式</div>
-    <div class="opt-row" id="mode-row">
-      <button class="opt" data-mode="light"><svg class="icon" aria-hidden="true"><use href="#i-sun"></use></svg> 光明</button>
-      <button class="opt" data-mode="dark"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg> 黑暗</button>
+
+    <!-- 日志：泳道页 -->
+    <div class="wrap settings-panel" data-cat="viewer">
+      <section class="box">
+        <div class="bt">泳道页
+          <span class="bt-info" tabindex="0" aria-label="灰态含义"
+                data-tip="「灰态」会话：在当前所选的「天」范围内没有任何日志，因而无法显示、也不能切换显隐的会话。开启后这类会话胶囊会自动隐藏，让选择器更清爽；一旦某天重新纳入使其有内容，会自动恢复。">
+            <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+          </span>
+        </div>
+        <div class="opt-row" id="viewer-row">
+          <button class="opt" id="opt-hide-grey"><svg class="icon" aria-hidden="true"><use href="#i-eyeOff"></use></svg> 自动隐藏灰态会话</button>
+        </div>
+      </section>
     </div>
-  </section>
-  <section class="box">
-    <div class="bt">动画速率
-      <span class="bt-info" tabindex="0" aria-label="动画速率说明"
-            data-tip="控制全站过渡与动效的快慢：「优雅」最慢、从容舒展；「默认」适中；「极速」最快、干脆利落。仅影响动画时长，不改变任何功能。若系统开启了「减少动态效果」，动画会自动近乎关闭。">
-        <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
-      </span>
+
+    <!-- 智能：再分「模型 / 提示词 / 知识库」三个子类。
+         融合式卡片（.ai-card）：一张卡片 = 标题 + 相关字段共用「一个」拟态/玻璃面，
+         内部字段透明内嵌、不再各自成面，减少元素滥用。 -->
+    <div class="wrap settings-panel" data-cat="ai">
+      <div class="ai-subnav" id="ai-subnav">
+        <button class="ai-subtab on" data-sub="model"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg> 模型</button>
+        <button class="ai-subtab" data-sub="prompt"><svg class="icon" aria-hidden="true"><use href="#i-note"></use></svg> 提示词</button>
+        <button class="ai-subtab" data-sub="rag"><svg class="icon" aria-hidden="true"><use href="#i-database"></use></svg> 知识库</button>
+      </div>
+
+      <!-- 子类：模型 -->
+      <div class="ai-sub on" data-sub="model">
+        <!-- 融合卡片：对话 -->
+        <div class="ai-card">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg> 对话模型
+            <span class="bt-info" tabindex="0" data-tip="OpenAI 兼容协议：Base URL 如 https://api.openai.com/v1 或本地 http://127.0.0.1:11434/v1。密钥仅存服务端，回显脱敏。">
+              <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></span>
+          </div>
+          <div class="ai-row"><span class="ai-k">Base URL</span>
+            <input id="ai-base-url" class="ai-flat" type="text" placeholder="https://api.openai.com/v1" spellcheck="false" /></div>
+          <div class="ai-row"><span class="ai-k">API Key</span>
+            <input id="ai-api-key" class="ai-flat" type="password" placeholder="sk-…（留空表示不修改）" spellcheck="false" autocomplete="off" /></div>
+          <div class="ai-row"><span class="ai-k">模型名</span>
+            <input id="ai-chat-model" class="ai-flat" type="text" placeholder="gpt-4o-mini / qwen2.5 …" spellcheck="false" /></div>
+        </div>
+        <!-- 融合卡片：向量 -->
+        <div class="ai-card">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-database"></use></svg> 向量模型
+            <label class="ai-inline-toggle"><input type="checkbox" id="ai-embed-use-chat" checked /> 复用对话入口</label>
+          </div>
+          <div class="ai-row embed-only"><span class="ai-k">Base URL</span>
+            <input id="ai-embed-base-url" class="ai-flat" type="text" placeholder="向量 API 入口（如 https://api.siliconflow.cn/v1）" spellcheck="false" /></div>
+          <div class="ai-row embed-only"><span class="ai-k">API Key</span>
+            <input id="ai-embed-api-key" class="ai-flat" type="password" placeholder="sk-…（留空表示不修改）" spellcheck="false" autocomplete="off" /></div>
+          <div class="ai-row"><span class="ai-k">模型名</span>
+            <input id="ai-embed-model" class="ai-flat" type="text" placeholder="text-embedding-3-small / bge-m3 …" spellcheck="false" /></div>
+        </div>
+        <!-- 命令行风格测试输出：紧贴向量卡片之下、按钮之上，点「测试连接」后展开动画 -->
+        <div class="ai-console" id="ai-console">
+          <div class="ai-console-inner">
+            <div class="ai-console-bar">
+              <span class="ai-console-dots"><i></i><i></i><i></i></span>
+              <span class="ai-console-title">连接测试</span>
+              <button class="ai-console-close" id="ai-console-close" title="关闭">✕</button>
+            </div>
+            <pre class="ai-console-body" id="ai-console-body"></pre>
+          </div>
+        </div>
+        <div class="ai-actions">
+          <button class="modal-btn ok" id="ai-save">保存配置</button>
+          <button class="modal-btn" id="ai-test"><svg class="icon" aria-hidden="true"><use href="#i-plug"></use></svg> 测试连接</button>
+          <span id="ai-status" class="ai-status"></span>
+        </div>
+      </div>
+
+      <!-- 子类：提示词。每个场景一张融合卡片（标题+恢复+输入共用一个面） -->
+      <div class="ai-sub" data-sub="prompt">
+        <div class="ai-card" data-scene="summarize">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-note"></use></svg> 总结
+            <button class="ai-reset" data-scene="summarize"><svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg> 恢复默认</button></div>
+          <textarea class="ai-flat ai-textarea" data-scene="summarize" rows="4" placeholder="总结场景系统提示词…"></textarea>
+        </div>
+        <div class="ai-card" data-scene="classify">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-note"></use></svg> 分类
+            <button class="ai-reset" data-scene="classify"><svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg> 恢复默认</button></div>
+          <textarea class="ai-flat ai-textarea" data-scene="classify" rows="4" placeholder="分类场景系统提示词…"></textarea>
+        </div>
+        <div class="ai-card" data-scene="ask">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-note"></use></svg> 提问 / RAG
+            <button class="ai-reset" data-scene="ask"><svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg> 恢复默认</button></div>
+          <textarea class="ai-flat ai-textarea" data-scene="ask" rows="4" placeholder="提问场景系统提示词…"></textarea>
+        </div>
+        <div class="ai-actions">
+          <button class="modal-btn ok" id="ai-save-prompts">保存提示词</button>
+        </div>
+      </div>
+
+      <!-- 子类：知识库（RAG 向量库） -->
+      <div class="ai-sub" data-sub="rag">
+        <div class="ai-card">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-database"></use></svg> 向量库
+            <span class="bt-info" tabindex="0" data-tip="所有总结内容会被向量化存入本地向量库，供 AI 做 RAG 检索问答。向量以 BLOB 存于 SQLite、随库走，检索用暴力余弦，无需额外扩展。">
+              <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></span>
+          </div>
+          <div class="ai-rag" id="ai-rag-stats">已向量化 <b id="rag-count">…</b> 条 · 维度 <b id="rag-dim">…</b></div>
+        </div>
+      </div>
     </div>
-    <div class="opt-row" id="anim-row">
-      <button class="opt" data-anim="graceful">优雅</button>
-      <button class="opt" data-anim="default">默认</button>
-      <button class="opt" data-anim="rapid">极速</button>
-    </div>
-  </section>
-  <section class="box">
-    <div class="bt">泳道页
-      <span class="bt-info" tabindex="0" aria-label="灰态含义"
-            data-tip="「灰态」会话：在当前所选的「天」范围内没有任何日志，因而无法显示、也不能切换显隐的会话。开启后这类会话胶囊会自动隐藏，让选择器更清爽；一旦某天重新纳入使其有内容，会自动恢复。">
-        <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
-      </span>
-    </div>
-    <div class="opt-row" id="viewer-row">
-      <button class="opt" id="opt-hide-grey"><svg class="icon" aria-hidden="true"><use href="#i-eyeOff"></use></svg> 自动隐藏灰态会话</button>
-    </div>
-  </section>
+  </div>
 </main>
 <script src="/static/frontend/shared/js/utils.js"></script>
 <script src="/static/frontend/shared/js/icons.js"></script>

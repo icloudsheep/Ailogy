@@ -308,3 +308,162 @@ def set_pref(db, key, value):
 def all_prefs(db):
     rows = db.execute(text("SELECT key, value FROM prefs")).fetchall()
     return {r[0]: r[1] for r in rows}
+
+
+# ── AI 智能洞察（ai_insights 表）──
+# demo 阶段：由 entries 派生（topic 用 project 充当，缺失归为「未归类」），
+# 后续替换为真正的 AI 产出。分类维度为「设备 + 主题」，泳道仍以 session 为列、沿用会话色/名。
+_AI_COLS = ("id, device, topic, session_code, emoji, name, title, summary, "
+            "datetime, color, src_client_id")
+
+
+def rebuild_ai_from_entries(db):
+    """demo 脚手架：清空并从 entries 重建 ai_insights（topic=project，空则「未归类」）。
+
+    每条 entry 派生一条 insight，沿用其会话代号/emoji/名字/颜色。真实 AI 接入后此函数将被替换。
+    """
+    db.execute(text("DELETE FROM ai_insights"))
+    rows = db.execute(text(
+        "SELECT device, project, session_code, emoji, name, title, summary, datetime, color, client_id "
+        "FROM entries ORDER BY datetime ASC, id ASC"
+    )).fetchall()
+    for r in rows:
+        m = r._mapping
+        topic = (m["project"] or "").strip() or "未归类"
+        db.execute(text("""
+            INSERT INTO ai_insights
+              (device, topic, session_code, emoji, name, title, summary, datetime, color, src_client_id,
+               created_at, updated_at)
+            VALUES
+              (:device, :topic, :session_code, :emoji, :name, :title, :summary, :datetime, :color, :src,
+               datetime('now'), datetime('now'))
+        """), {
+            "device": m["device"] or "", "topic": topic, "session_code": m["session_code"],
+            "emoji": m["emoji"] or "", "name": m["name"] or "", "title": m["title"] or "",
+            "summary": m["summary"] or "", "datetime": m["datetime"], "color": m["color"],
+            "src": m["client_id"],
+        })
+    return len(rows)
+
+
+def list_ai_insights(db, topics=None, devices=None):
+    """按主题 + 设备取 AI 洞察。topics/devices 为 None=全部，[]=空结果，数组=指定集合。"""
+    if (topics is not None and len(topics) == 0) or (devices is not None and len(devices) == 0):
+        return []
+    where = "1=1"
+    params = {}
+    if devices is not None:
+        ph = ", ".join(f":d{i}" for i in range(len(devices)))
+        where += f" AND COALESCE(device,'') IN ({ph})"
+        for i, d in enumerate(devices):
+            params[f"d{i}"] = d
+    if topics is not None:
+        ph = ", ".join(f":t{i}" for i in range(len(topics)))
+        where += f" AND topic IN ({ph})"
+        for i, t in enumerate(topics):
+            params[f"t{i}"] = t
+    rows = db.execute(text(
+        f"SELECT {_AI_COLS} FROM ai_insights WHERE {where} "
+        "ORDER BY datetime ASC, id ASC"
+    ), params).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def list_ai_topics(db):
+    rows = db.execute(text(
+        "SELECT topic, COUNT(*) AS cnt FROM ai_insights GROUP BY topic ORDER BY cnt DESC, topic"
+    )).fetchall()
+    return [{"topic": r[0], "count": r[1]} for r in rows]
+
+
+def list_ai_devices(db):
+    rows = db.execute(text(
+        "SELECT DISTINCT COALESCE(device,'') AS d FROM ai_insights ORDER BY d"
+    )).fetchall()
+    return [r[0] for r in rows]
+
+
+# ── RAG 向量：float32 小端 BLOB 存储 + 暴力余弦检索 ──
+import struct as _struct
+import math as _math
+
+
+def vec_to_blob(vec):
+    """float 序列 → float32 小端 BLOB。"""
+    return _struct.pack(f"<{len(vec)}f", *vec)
+
+
+def blob_to_vec(blob):
+    """float32 小端 BLOB → float 列表。"""
+    if not blob:
+        return []
+    n = len(blob) // 4
+    return list(_struct.unpack(f"<{n}f", blob))
+
+
+def upsert_embedding(db, source_type, source_id, model, dim, text_snippet, vec):
+    """按 (source_type, source_id) 幂等写入向量。"""
+    db.execute(text("""
+        INSERT INTO embeddings (source_type, source_id, model, dim, text, vec, created_at, updated_at)
+        VALUES (:st, :sid, :model, :dim, :text, :vec, datetime('now'), datetime('now'))
+        ON CONFLICT(source_type, source_id) DO UPDATE SET
+          model=excluded.model, dim=excluded.dim, text=excluded.text, vec=excluded.vec,
+          updated_at=datetime('now')
+    """), {"st": source_type, "sid": source_id, "model": model, "dim": dim,
+           "text": text_snippet, "vec": vec_to_blob(vec)})
+
+
+def embedding_stats(db):
+    """向量库概况：总数、涉及模型、维度。供设置页/AI 页展示 RAG 就绪度。"""
+    row = db.execute(text(
+        "SELECT COUNT(*) AS cnt, "
+        "(SELECT COUNT(DISTINCT model) FROM embeddings) AS models, "
+        "(SELECT MAX(dim) FROM embeddings) AS dim FROM embeddings"
+    )).fetchone()
+    m = row._mapping
+    return {"count": m["cnt"] or 0, "models": m["models"] or 0, "dim": m["dim"] or 0}
+
+
+def clear_embeddings(db):
+    db.execute(text("DELETE FROM embeddings"))
+
+
+def search_embeddings(db, query_vec, top_k=8):
+    """暴力余弦相似度检索：与库中所有向量比对，返回 top_k。
+    本地单用户规模（数百~数千条）下 numpy/纯 Python 均在毫秒级。"""
+    rows = db.execute(text(
+        "SELECT source_type, source_id, model, dim, text, vec FROM embeddings"
+    )).fetchall()
+    if not rows:
+        return []
+    q = list(query_vec)
+    qnorm = _math.sqrt(sum(x * x for x in q)) or 1.0
+    try:
+        import numpy as _np
+        qa = _np.asarray(q, dtype=_np.float32)
+        qn = float(_np.linalg.norm(qa)) or 1.0
+        scored = []
+        for r in rows:
+            m = r._mapping
+            v = _np.frombuffer(m["vec"], dtype=_np.float32) if m["vec"] else None
+            if v is None or v.size != qa.size:
+                continue
+            denom = (float(_np.linalg.norm(v)) or 1.0) * qn
+            sim = float(_np.dot(qa, v)) / denom
+            scored.append((sim, m))
+    except Exception:
+        scored = []
+        for r in rows:
+            m = r._mapping
+            v = blob_to_vec(m["vec"])
+            if not v or len(v) != len(q):
+                continue
+            dot = sum(a * b for a, b in zip(q, v))
+            vnorm = _math.sqrt(sum(x * x for x in v)) or 1.0
+            scored.append((dot / (qnorm * vnorm), m))
+    scored.sort(key=lambda t: t[0], reverse=True)
+    out = []
+    for sim, m in scored[:top_k]:
+        out.append({"source_type": m["source_type"], "source_id": m["source_id"],
+                    "text": m["text"], "score": round(sim, 4)})
+    return out

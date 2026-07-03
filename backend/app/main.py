@@ -30,9 +30,10 @@ def health():
     return {"status": "ok", "db": DB_PATH}
 
 
-from .routers import entries, ingest  # noqa: E402
+from .routers import entries, ingest, ai  # noqa: E402
 app.include_router(entries.router)
 app.include_router(ingest.router)
+app.include_router(ai.router)
 
 
 from fastapi.responses import FileResponse  # noqa: E402
@@ -51,6 +52,11 @@ def settings_index():
 @app.get("/about")
 def about_index():
     return FileResponse(os.path.join(_FRONTEND, "about", "index.html"))
+
+
+@app.get("/ai")
+def ai_index():
+    return FileResponse(os.path.join(_FRONTEND, "ai", "index.html"))
 
 
 @app.get("/api/version")
