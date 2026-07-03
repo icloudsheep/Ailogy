@@ -59,6 +59,7 @@ function fillAIConfig(cfg) {
   const p = cfg.prompts || {};
   document.querySelectorAll(".ai-textarea").forEach((t) => { t.value = p[t.dataset.scene] || ""; });
   if (cfg.default_prompts) _defaultPrompts = cfg.default_prompts;
+  if (typeof fillRunParams === "function") fillRunParams(cfg);
 }
 
 function toggleEmbedShared(useChat) {
@@ -191,3 +192,117 @@ document.querySelectorAll("#ai-subnav .ai-subtab").forEach((b) =>
   if (!document.querySelector(`.ai-sub[data-sub="${sub}"]`)) sub = "model";
   showSub(sub);
 }
+
+// ══════════ 运行子类：参数 / 实时状态 / 失败重试 / 重置 ══════════
+const RunAPI = {
+  status: (after) => fetch("/api/ai/worker/status?log_after=" + (after || 0)).then((r) => r.json()),
+  retry: (client_id) => fetch("/api/ai/worker/retry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_id }) }).then((r) => r.json()),
+  resetCls: () => fetch("/api/ai/reset/classification", { method: "POST" }).then((r) => r.json()),
+  resetEmb: () => fetch("/api/ai/reset/embeddings", { method: "POST" }).then((r) => r.json()),
+};
+
+// 把运行参数填进表单（从 /api/ai/config 已取到的 cfg）
+function fillRunParams(cfg) {
+  if (!cfg) return;
+  if (_q("ai-worker-enabled")) _q("ai-worker-enabled").checked = cfg.worker_enabled !== false;
+  if (_q("ai-poll-interval")) _q("ai-poll-interval").value = cfg.poll_interval || 20;
+  if (_q("ai-retry-limit")) _q("ai-retry-limit").value = cfg.retry_limit != null ? cfg.retry_limit : 1;
+  if (_q("ai-recompute")) _q("ai-recompute").value = cfg.recompute_on_update || "embed";
+}
+
+if (_q("ai-save-run")) _q("ai-save-run").onclick = async () => {
+  const patch = {
+    worker_enabled: _q("ai-worker-enabled").checked,
+    poll_interval: parseInt(_q("ai-poll-interval").value, 10) || 20,
+    retry_limit: parseInt(_q("ai-retry-limit").value, 10) || 0,
+    recompute_on_update: _q("ai-recompute").value,
+  };
+  try { await AICfg.put(patch); showToast("已保存运行参数", { title: "智能" }); }
+  catch (err) { showToast("保存失败：" + err.message, { type: "err" }); }
+};
+
+// 折叠终端
+if (_q("run-console-toggle")) _q("run-console-toggle").onclick = () => {
+  _q("run-console").classList.toggle("open");
+};
+function runConsoleLine(tag, msg) {
+  const body = _q("run-console-body"); if (!body) return;
+  const prefix = { ok: "✓ ", err: "✗ ", info: "» ", done: "✔ ", cmd: "$ " }[tag] || "  ";
+  const el = document.createElement("span"); el.className = "cl cl-" + tag;
+  el.textContent = prefix + msg + "\n"; body.appendChild(el);
+  while (body.childElementCount > 300) body.removeChild(body.firstChild);
+  body.scrollTop = body.scrollHeight;
+}
+
+// 每秒轮询 worker 状态：更新徽标/进度/token/终端/失败列表；忙时弹无限加载 toast 并每秒刷新 token
+let _runLogAfter = 0, _runToast = null, _runTimer = 0;
+const _tok = (n) => fmtTok(n || 0) || "0";   // 复用 utils.js 的 fmtTok，空值兜底为 "0"
+async function pollWorker() {
+  let r;
+  try { r = await RunAPI.status(_runLogAfter); } catch (_) { return; }
+  const s = r.status || {}, q = r.queue || {}, failed = r.failed || [];
+  // 队列 + token 概况
+  if (_q("run-pending")) _q("run-pending").textContent = q.pending || 0;
+  if (_q("run-paused")) _q("run-paused").textContent = q.paused || 0;
+  if (_q("run-tok-in")) _q("run-tok-in").textContent = _tok(s.tokens_in);
+  if (_q("run-tok-out")) _q("run-tok-out").textContent = _tok(s.tokens_out);
+  // 徽标 + 进度
+  const badge = _q("ai-run-badge"), prog = _q("ai-run-progress");
+  const PHASE = { embed: "向量化", classify: "分类", summarize: "主题综述", delete: "清理", starting: "启动", idle: "空闲" };
+  if (badge) { badge.textContent = s.busy ? (PHASE[s.phase] || "运行中") : "空闲"; badge.classList.toggle("busy", !!s.busy); }
+  if (prog) {
+    prog.hidden = !s.busy;
+    if (s.busy) {
+      const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+      _q("ai-run-bar").style.width = pct + "%";
+      _q("ai-run-phase").textContent = `${PHASE[s.phase] || s.phase} · ${s.done}/${s.total}` + (s.current ? ` · ${s.current}` : "");
+    }
+  }
+  // 增量日志入终端
+  (s.log || []).forEach((ln) => { runConsoleLine(ln.tag, ln.msg); _runLogAfter = Math.max(_runLogAfter, ln.ts); });
+  if ((s.log || []).length && !_q("run-console").classList.contains("open")) _q("run-console").classList.add("open");
+  // 失败列表
+  const fcard = _q("ai-failed-card");
+  if (fcard) {
+    fcard.hidden = failed.length === 0;
+    const list = _q("ai-failed-list");
+    if (list) list.innerHTML = failed.map((f) => `<div class="ai-failed-item">
+      <div class="ai-failed-info"><span class="ai-failed-title">${esc(f.title || f.client_id)}</span>
+        <span class="ai-failed-err">${esc((f.last_error || "").slice(0, 80))}</span></div>
+      <button class="ai-reset ai-retry-one" data-cid="${esc(f.client_id)}">重试</button></div>`).join("");
+    if (list) list.querySelectorAll(".ai-retry-one").forEach((b) => b.onclick = async () => {
+      await RunAPI.retry(b.dataset.cid); showToast("已重试", { title: "智能" }); });
+  }
+  // 忙时无限加载 toast，每秒刷新 token；空闲则收起
+  if (s.busy) {
+    const body = `处理中 ${s.done}/${s.total} · ↑${_tok(s.tokens_in)} ↓${_tok(s.tokens_out)} token`;
+    if (!_runToast || _runToast._dismissed) _runToast = showToast(body, { title: "AI 处理中", loading: true });
+    else _runToast.update(body, "AI 处理中·" + (PHASE[s.phase] || s.phase));
+  } else if (_runToast && !_runToast._dismissed) {
+    _runToast.update(`本轮完成 · 累计 ↑${_tok(s.tokens_in)} ↓${_tok(s.tokens_out)} token`, "AI 处理完成");
+    setTimeout(() => { if (_runToast) _runToast.dismiss(); _runToast = null; }, 1500);
+  }
+}
+
+if (_q("ai-retry-all")) _q("ai-retry-all").onclick = async () => {
+  try { const r = await RunAPI.retry(null); showToast(`已重试 ${r.retried} 项`, { title: "智能" }); }
+  catch (err) { showToast("重试失败：" + err.message, { type: "err" }); }
+};
+if (_q("ai-reset-cls")) _q("ai-reset-cls").onclick = async () => {
+  const v = await promptModal({ title: "重置主题分类 + 综述", desc: "将清空所有主题分类与综述，并按当前模型/提示词<b>全量重跑</b>。<br>输入 <b>重置</b> 确认：", placeholder: "重置" });
+  if (v === null) return;
+  if (v.trim() !== "重置") { showToast("已取消（未输入“重置”）", { title: "智能" }); return; }
+  try { const r = await RunAPI.resetCls(); showToast(`已重置，${r.enqueued} 条待重新分类`, { title: "智能" }); }
+  catch (err) { showToast("重置失败：" + err.message, { type: "err" }); }
+};
+if (_q("ai-reset-emb")) _q("ai-reset-emb").onclick = async () => {
+  const v = await promptModal({ title: "重置向量知识库", desc: "将清空全部向量，并按当前向量模型<b>全量重新嵌入</b>。<br>输入 <b>重置</b> 确认：", placeholder: "重置" });
+  if (v === null) return;
+  if (v.trim() !== "重置") { showToast("已取消（未输入“重置”）", { title: "智能" }); return; }
+  try { const r = await RunAPI.resetEmb(); showToast(`已重置，${r.enqueued} 条待重新嵌入`, { title: "智能" }); }
+  catch (err) { showToast("重置失败：" + err.message, { type: "err" }); }
+};
+
+// 启动每秒轮询（全程运行，以便 worker 忙时随处都能弹加载 toast）
+_runTimer = setInterval(pollWorker, 1000);
+pollWorker();

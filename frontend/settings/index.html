@@ -82,6 +82,7 @@
         <button class="ai-subtab on" data-sub="model"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg> 模型</button>
         <button class="ai-subtab" data-sub="prompt"><svg class="icon" aria-hidden="true"><use href="#i-note"></use></svg> 提示词</button>
         <button class="ai-subtab" data-sub="rag"><svg class="icon" aria-hidden="true"><use href="#i-database"></use></svg> 知识库</button>
+        <button class="ai-subtab" data-sub="run"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg> 运行</button>
       </div>
 
       <!-- 子类：模型 -->
@@ -159,6 +160,68 @@
               <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></span>
           </div>
           <div class="ai-rag" id="ai-rag-stats">已向量化 <b id="rag-count">…</b> 条 · 维度 <b id="rag-dim">…</b></div>
+        </div>
+      </div>
+
+      <!-- 子类：运行（worker 参数 + 实时状态 + 失败重试 + 重置） -->
+      <div class="ai-sub" data-sub="run">
+        <!-- 运行参数 -->
+        <div class="ai-card">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-gear"></use></svg> 运行参数</div>
+          <div class="ai-row"><span class="ai-k">自动处理</span>
+            <label class="ai-inline-toggle" style="margin-left:0"><input type="checkbox" id="ai-worker-enabled" checked /> 开启后台处理</label></div>
+          <div class="ai-row"><span class="ai-k">轮询兜底</span>
+            <input id="ai-poll-interval" class="ai-flat" type="number" min="5" max="3600" placeholder="20" /><span class="ai-unit">秒</span></div>
+          <div class="ai-row"><span class="ai-k">失败重试上限</span>
+            <input id="ai-retry-limit" class="ai-flat" type="number" min="0" max="10" placeholder="1" /><span class="ai-unit">次</span></div>
+          <div class="ai-row"><span class="ai-k">编辑后重算</span>
+            <select id="ai-recompute" class="ai-flat">
+              <option value="embed">仅重做向量（默认）</option>
+              <option value="all">重做分类 + 向量</option>
+            </select></div>
+          <div class="ai-actions"><button class="modal-btn ok" id="ai-save-run">保存运行参数</button></div>
+        </div>
+
+        <!-- 实时状态：正在运行的 worker + 进度 + 可折叠输出终端 -->
+        <div class="ai-card">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg> 实时状态
+            <span class="ai-run-badge" id="ai-run-badge">空闲</span></div>
+          <div class="ai-run-stat" id="ai-run-stat">队列：待办 <b id="run-pending">0</b> · 暂停 <b id="run-paused">0</b> · 累计 token ↑<b id="run-tok-in">0</b> ↓<b id="run-tok-out">0</b></div>
+          <div class="ai-run-progress" id="ai-run-progress" hidden><div class="ai-run-bar" id="ai-run-bar"></div><span class="ai-run-phase" id="ai-run-phase"></span></div>
+          <!-- 折叠终端（样式同「测试连接」） -->
+          <div class="ai-console" id="run-console">
+            <div class="ai-console-inner">
+              <div class="ai-console-bar">
+                <span class="ai-console-dots"><i></i><i></i><i></i></span>
+                <span class="ai-console-title">worker 输出</span>
+                <button class="ai-console-close" id="run-console-toggle" title="折叠/展开">▾</button>
+              </div>
+              <pre class="ai-console-body" id="run-console-body"></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- 失败列表 + 手动重试 -->
+        <div class="ai-card" id="ai-failed-card" hidden>
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg> 失败项
+            <button class="ai-reset" id="ai-retry-all">全部重试</button></div>
+          <div id="ai-failed-list" class="ai-failed-list"></div>
+        </div>
+
+        <!-- 重置：换模型时推倒重来 -->
+        <div class="ai-card">
+          <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg> 重置
+            <span class="bt-info" tabindex="0" data-tip="更换 AI 模型后可整体重建。重置后对应数据清空并全量重跑，过程可能耗时与消耗较多 token。">
+              <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></span>
+          </div>
+          <div class="ai-reset-row">
+            <div class="ai-reset-desc">重置<b>主题分类 + 综述</b>：清空并按当前模型/提示词全量重新分类、重算综述。</div>
+            <button class="modal-btn" id="ai-reset-cls">重置分类</button>
+          </div>
+          <div class="ai-reset-row">
+            <div class="ai-reset-desc">重置<b>向量知识库</b>：清空并按当前向量模型全量重新嵌入（RAG 数据回归初始）。</div>
+            <button class="modal-btn" id="ai-reset-emb">重置向量库</button>
+          </div>
         </div>
       </div>
     </div>

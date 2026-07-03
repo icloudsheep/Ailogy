@@ -8,7 +8,7 @@
 约定：这些函数只做「一条/一批」的实际工作，队列状态机（清标志/出队/失败计数）由 worker 管。
 出错时直接抛异常，worker 负责 attempts+1 / paused。
 """
-from . import repo, ai_config, ai_client
+from . import repo, ai_config, ai_client, ai_status
 
 
 def _embed_text(entry) -> str:
@@ -92,6 +92,7 @@ def process_insight(db, client_id):
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user},
     ], timeout=60.0)
+    ai_status.add_usage(r.get("usage"))
     if not r.get("ok"):
         raise RuntimeError(f"分类失败 HTTP {r.get('status')}: {r.get('error')}")
     topic = (r["data"].get("topic") or "").strip() if isinstance(r.get("data"), dict) else ""
@@ -167,6 +168,7 @@ def resummarize_pending(db, extra_topics=None):
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": user},
         ], timeout=90.0)
+        ai_status.add_usage(r.get("usage"))
         if not r.get("ok"):
             # 综述失败不阻断整批：保留 need_resummarize=1，下轮再试
             import logging

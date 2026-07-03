@@ -406,12 +406,84 @@ def delete_topic(db, topic):
     db.execute(text("DELETE FROM ai_topics WHERE topic=:t"), {"t": topic})
 
 
-def list_topics_full(db):
-    """一级页面用：主题 + 综述 + 计数 + 代表色（按计数降序）。"""
+def list_topics_full(db, devices=None):
+    """一级页面用：主题 + 综述 + 计数 + 代表色（按计数降序）。
+
+    devices=None → 全部（用 ai_topics 缓存的综述与全量计数）。
+    devices=[...] → 计数按该设备集合从 ai_insights 现算，只保留在此设备下有日志的主题；
+    综述仍取全量综述（综述是跨全部日志的，不随设备切分重算）。
+    """
+    if devices is None:
+        rows = db.execute(text(
+            "SELECT topic, summary, entry_count, color, need_resummarize, updated_at "
+            "FROM ai_topics WHERE entry_count > 0 ORDER BY entry_count DESC, topic")).fetchall()
+        return [dict(r._mapping) for r in rows]
+    if len(devices) == 0:
+        return []
+    ph = ", ".join(f":d{i}" for i in range(len(devices)))
+    params = {f"d{i}": d for i, d in enumerate(devices)}
     rows = db.execute(text(
-        "SELECT topic, summary, entry_count, color, need_resummarize, updated_at "
-        "FROM ai_topics WHERE entry_count > 0 ORDER BY entry_count DESC, topic")).fetchall()
+        f"SELECT i.topic AS topic, COUNT(*) AS entry_count, "
+        f"  MAX(i.color) AS color, "
+        f"  (SELECT summary FROM ai_topics t WHERE t.topic = i.topic) AS summary "
+        f"FROM ai_insights i WHERE COALESCE(i.device,'') IN ({ph}) "
+        f"GROUP BY i.topic ORDER BY entry_count DESC, i.topic"), params).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+def list_failed_queue(db, limit=100):
+    """列出已暂停（超重试上限）的失败队列项，供设置页展示 + 手动重试。"""
+    rows = db.execute(text(
+        "SELECT q.client_id, q.op, q.need_insight, q.need_embed, q.attempts, q.last_error, "
+        "e.title AS title FROM ai_queue q "
+        "LEFT JOIN entries e ON e.client_id = q.client_id "
+        "WHERE q.paused=1 ORDER BY q.updated_at DESC LIMIT :lim"
+    ), {"lim": limit}).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def retry_failed(db, client_id=None):
+    """解除暂停以重试：指定 client_id 只重试该条，否则全部失败项。返回受影响条数。"""
+    if client_id:
+        r = db.execute(text(
+            "UPDATE ai_queue SET paused=0, attempts=0, last_error='', updated_at=datetime('now') "
+            "WHERE client_id=:c AND paused=1"), {"c": client_id})
+    else:
+        r = db.execute(text(
+            "UPDATE ai_queue SET paused=0, attempts=0, last_error='', updated_at=datetime('now') "
+            "WHERE paused=1"))
+    return r.rowcount
+
+
+def reset_classification(db):
+    """重置主题分类+综述：清空 ai_insights / ai_topics，所有 entry 重新入队做分类。
+    返回重新入队条数。（换模型/大改提示词后推倒重来用。）"""
+    db.execute(text("DELETE FROM ai_insights"))
+    db.execute(text("DELETE FROM ai_topics"))
+    # 所有 entry 置 need_insight=1（保留 need_embed 现状：若已有向量则不动）
+    rows = db.execute(text("SELECT client_id FROM entries")).fetchall()
+    for (cid,) in [(r[0],) for r in rows]:
+        db.execute(text("""
+            INSERT INTO ai_queue (client_id, op, need_insight, need_embed, attempts, paused, last_error, enqueued_at, updated_at)
+            VALUES (:c, 'upsert', 1, 0, 0, 0, '', datetime('now'), datetime('now'))
+            ON CONFLICT(client_id) DO UPDATE SET op='upsert', need_insight=1,
+              attempts=0, paused=0, last_error='', updated_at=datetime('now')
+        """), {"c": cid})
+    return len(rows)
+
+
+def reset_embeddings(db):
+    """重置向量知识库：清空 embeddings，所有 entry 重新入队做向量化。返回重新入队条数。"""
+    db.execute(text("DELETE FROM embeddings"))
+    rows = db.execute(text("SELECT client_id FROM entries")).fetchall()
+    for (cid,) in [(r[0],) for r in rows]:
+        db.execute(text("""
+            INSERT INTO ai_queue (client_id, op, need_insight, need_embed, attempts, paused, last_error, enqueued_at, updated_at)
+            VALUES (:c, 'upsert', 0, 1, 0, 0, '', datetime('now'), datetime('now'))
+            ON CONFLICT(client_id) DO UPDATE SET op='upsert', need_embed=1,
+              attempts=0, paused=0, last_error='', updated_at=datetime('now')
+        """), {"c": cid})
+    return len(rows)
 
 
 def enqueue_all_entries(db, only_missing=True):

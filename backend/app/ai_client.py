@@ -81,9 +81,14 @@ def chat_json(base_url, api_key, model, messages, timeout=30.0):
                     data = _json.loads(m.group(0))
                 except Exception:
                     data = None
+        usage = None
+        try:
+            usage = r.json().get("usage")
+        except Exception:
+            usage = None
         if data is None:
-            return {"ok": False, "status": r.status_code, "error": f"无法解析 JSON：{_short(content)}", "ms": ms}
-        return {"ok": True, "status": r.status_code, "data": data, "ms": ms}
+            return {"ok": False, "status": r.status_code, "error": f"无法解析 JSON：{_short(content)}", "ms": ms, "usage": usage}
+        return {"ok": True, "status": r.status_code, "data": data, "ms": ms, "usage": usage}
     except Exception as e:
         return {"ok": False, "status": 0, "error": f"{type(e).__name__}: {e}",
                 "ms": int((time.time() - t0) * 1000)}

@@ -18,24 +18,50 @@
 <link rel="stylesheet" href="/static/frontend/viewer/css/timeline.css">
 <link rel="stylesheet" href="/static/frontend/viewer/css/detail.css">
 <link rel="stylesheet" href="/static/frontend/viewer/css/viewer.css">
+<link rel="stylesheet" href="/static/frontend/ai/css/ai.css">
 </head>
 <body class="viewer-page">
 <div class="bg"></div>
 
 <header id="app-header" data-icon="sparkles" data-title="智能">
+  <!-- 返回按钮：仅在二级页面显示 -->
+  <button id="ai-back" class="month-pick" hidden><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> <b>返回主题</b></button>
   <button id="device-pick" class="month-pick"><svg class="icon" aria-hidden="true"><use href="#i-laptop"></use></svg> <b id="device-label">全部设备</b></button>
-  <div class="search-box"><input id="search-input" type="text" placeholder="搜索 AI 洞察…" spellcheck="false" /></div>
-  <!-- 第二行：主题选择器（无洞察时整体隐藏）。AI 侧按「设备 + 主题」分类，不再有天/会话两级 -->
+  <!-- 二级页面：月选择器（一级隐藏） -->
+  <button id="month-pick" class="month-pick" hidden><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg> <b id="month-label"></b></button>
+  <!-- 二级页面：天/会话选择器（一级隐藏；主题为固定隐藏筛选，不在此展示） -->
   <div id="header-row2" class="caps" hidden>
-    <div class="cap-row"><span class="cap-tag">主题</span><div id="cap-topics" class="cap-list"></div></div>
+    <div class="cap-row"><span class="cap-tag">天</span><div id="cap-days" class="cap-list"></div></div>
+    <div class="cap-row"><span class="cap-tag">会话</span><div id="cap-sessions" class="cap-list"></div></div>
   </div>
 </header>
 
-<!-- 泳道 + 详情（复用 viewer 布局） -->
-<div class="wrap">
+<!-- 一级页面：主题爆炸图（中心洞察迸发主题节点） -->
+<div id="ai-galaxy" class="ai-galaxy">
+  <div class="galaxy-stage" id="galaxy-stage">
+    <div class="galaxy-core"><span class="galaxy-core-emo"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg></span><span class="galaxy-core-label">洞察</span></div>
+  </div>
+  <div class="galaxy-empty" id="galaxy-empty" hidden>
+    <div class="empty-main">暂无主题</div>
+    <div class="empty-sub">配置好模型后，AI 会自动把日志归类成主题</div>
+  </div>
+</div>
+
+<!-- 主题综述卡片（点主题节点弹出） -->
+<div id="topic-card" class="topic-card" hidden>
+  <div class="topic-card-inner">
+    <div class="topic-card-head"><span class="topic-card-dot"></span><span class="topic-card-name" id="topic-card-name"></span>
+      <span class="topic-card-cnt" id="topic-card-cnt"></span>
+      <button class="topic-card-close" id="topic-card-close">✕</button></div>
+    <div class="topic-card-body md" id="topic-card-body"></div>
+    <div class="topic-card-actions"><button class="modal-btn ok" id="topic-card-enter">进入该主题 →</button></div>
+  </div>
+</div>
+
+<!-- 二级页面：主题内泳道 + 详情（复用 viewer 布局），默认隐藏 -->
+<div class="wrap ai-lane" id="ai-lane" hidden>
   <div class="left" id="left"><div class="stage" id="stage"></div></div>
-  <div class="right" id="detail"><div class="box empty"><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> 点击左侧节点查看该条洞察</div></div>
-  <main id="feed"></main>
+  <div class="right" id="detail"><div class="box empty"><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> 点击左侧节点查看该条日志</div></div>
 </div>
 
 <script src="/static/vendor/mermaid.min.js"

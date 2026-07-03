@@ -1,0 +1,89 @@
+/* AI 一级页面：主题爆炸图（galaxy）。中心「洞察」核，主题节点向四周迸发，
+   悬停显名、交替闪烁 + 大小脉动，点击弹综述卡片。二级页面复用 viewer 泳道样式。 */
+
+/* 爆炸图铺满 banner 之下的视口，独立一层 */
+.ai-galaxy { position: absolute; inset: 0; top: var(--topbar-h, 150px);
+  overflow: hidden; display: grid; place-items: center;
+  transition: top calc(.42s * var(--anim-k)) cubic-bezier(.2,.8,.2,1); }
+.galaxy-stage { position: relative; width: 100%; height: 100%; }
+
+/* 中心「洞察」核：呼吸光环 + 主题色渐变球 */
+.galaxy-core { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 108px; height: 108px; border-radius: 50%; display: grid; place-items: center;
+  z-index: 3; cursor: default; text-align: center;
+  background: radial-gradient(circle at 38% 32%,
+    color-mix(in srgb, #9d7bff 85%, #fff), color-mix(in srgb, #6ea8fe 60%, #2a344a));
+  border: 2px solid color-mix(in srgb, #9d7bff 70%, #fff);
+  box-shadow: 0 0 0 6px color-mix(in srgb, #9d7bff 16%, transparent),
+    0 0 42px -4px color-mix(in srgb, #6ea8fe 80%, transparent);
+  animation: core-breathe calc(3.4s * var(--anim-k)) ease-in-out infinite; }
+@keyframes core-breathe {
+  0%,100% { box-shadow: 0 0 0 6px color-mix(in srgb,#9d7bff 16%,transparent), 0 0 42px -4px color-mix(in srgb,#6ea8fe 80%,transparent); }
+  50% { box-shadow: 0 0 0 12px color-mix(in srgb,#9d7bff 8%,transparent), 0 0 64px 2px color-mix(in srgb,#6ea8fe 90%,transparent); } }
+.galaxy-core-emo .icon { width: 34px; height: 34px; color: #fff; filter: drop-shadow(0 1px 4px rgba(20,28,60,.5)); }
+.galaxy-core-label { display: block; font-size: 12px; font-weight: 700; color: #fff; margin-top: 2px;
+  letter-spacing: 1px; text-shadow: 0 1px 4px rgba(20,28,60,.6); }
+
+/* 主题节点：绝对定位（JS 计算迸发坐标），液态玻璃圆球 + 主题色，交替闪烁+脉动 */
+.galaxy-node { position: absolute; transform: translate(-50%,-50%);
+  display: grid; place-items: center; border-radius: 50%; cursor: pointer; z-index: 2;
+  background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--c) 82%, #fff), color-mix(in srgb, var(--c) 42%, #2a344a));
+  border: 2px solid color-mix(in srgb, var(--c) 78%, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent), 0 4px 16px -3px var(--c);
+  transition: transform calc(.5s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.25),
+    left calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1), top calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1);
+  animation: node-pulse var(--pulse, 3s) ease-in-out infinite var(--delay, 0s); }
+.galaxy-node .gn-emo { font-size: 20px; line-height: 1; }
+@keyframes node-pulse {
+  0%,100% { transform: translate(-50%,-50%) scale(1); filter: brightness(1); }
+  50% { transform: translate(-50%,-50%) scale(1.14); filter: brightness(1.18); } }
+.galaxy-node:hover { transform: translate(-50%,-50%) scale(1.3); z-index: 5; animation-play-state: paused; }
+/* 迸发入场：从中心飞出 */
+.galaxy-node.enter { animation: gn-burst calc(.6s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.3) both; }
+@keyframes gn-burst { 0% { left: 50%; top: 50%; opacity: 0; transform: translate(-50%,-50%) scale(.2); }
+  100% { opacity: 1; } }
+
+/* 节点标签：悬停浮现在节点下方 */
+.galaxy-label { position: absolute; transform: translate(-50%, 8px); white-space: nowrap;
+  font-size: 12.5px; font-weight: 650; color: var(--txt); pointer-events: none; z-index: 6;
+  padding: 3px 9px; border-radius: 8px; opacity: 0; transition: opacity calc(.2s * var(--anim-k)) ease;
+  background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.galaxy-label.on { opacity: 1; }
+
+/* 连接中心与节点的淡线（SVG） */
+.galaxy-rays { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: visible; }
+.galaxy-ray { stroke-width: 1.5; opacity: .22; stroke-linecap: round;
+  transition: opacity calc(.3s * var(--anim-k)) ease; }
+
+.galaxy-empty { position: absolute; left: 50%; top: 58%; transform: translate(-50%,0); text-align: center; z-index: 4; }
+.galaxy-empty .empty-main { font-size: 16px; font-weight: 650; color: var(--txt); }
+.galaxy-empty .empty-sub { font-size: 13px; color: var(--dim); margin-top: 6px; }
+
+/* 主题综述卡片：居中浮层，玻璃磨砂 */
+.topic-card { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  background: rgba(20,26,44,.32); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  animation: tc-fade calc(.22s * var(--anim-k)) ease both; }
+@keyframes tc-fade { from { opacity: 0; } to { opacity: 1; } }
+.topic-card-inner { width: min(560px, 92vw); max-height: 76vh; display: flex; flex-direction: column;
+  border-radius: 18px; padding: 20px 22px; box-sizing: border-box;
+  background: var(--lg-bg); border: var(--lg-border);
+  box-shadow: 0 24px 60px -20px rgba(20,26,54,.6), var(--lg-inset);
+  backdrop-filter: blur(20px) saturate(185%); -webkit-backdrop-filter: blur(20px) saturate(185%);
+  animation: tc-pop calc(.32s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes tc-pop { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+.topic-card-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.topic-card-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c, #6ea8fe);
+  box-shadow: 0 0 10px var(--c, #6ea8fe); flex: none; }
+.topic-card-name { font-size: 17px; font-weight: 700; color: var(--title-color); }
+.topic-card-cnt { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.topic-card-close { margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--dim); font-size: 15px; line-height: 1; padding: 4px 6px; border-radius: 6px; }
+.topic-card-close:hover { color: var(--txt); background: color-mix(in srgb, var(--txt) 10%, transparent); }
+.topic-card-body { overflow: auto; font-size: 14px; line-height: 1.7; color: var(--txt); flex: 1; }
+.topic-card-body:empty::before { content: "（该主题综述生成中…）"; color: var(--dim); }
+.topic-card-actions { margin-top: 16px; display: flex; justify-content: flex-end; }
+.topic-card-actions .modal-btn { cursor: pointer; }
+
+/* 二级页面泳道：沿用 viewer 的 .wrap/.left/.right；这里仅确保它在 AI 页正确铺满 */
+.ai-lane[hidden] { display: none; }

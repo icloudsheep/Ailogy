@@ -117,23 +117,29 @@ def _process_once():
             from . import ai_pipelines as P
         except Exception:
             P = None
+        from . import ai_status as S
 
+        S.begin_round(len(rows))
         affected_topics = set()
         for r in rows:
             cid, op = r["client_id"], r["op"]
             try:
                 if op == "delete":
+                    S.set_phase("delete", cid)
                     if P:
                         t = P.handle_delete(db, cid)
                         if t:
                             affected_topics.add(t)
                     _dequeue(db, cid)
+                    S.inc_done()
                     continue
                 # upsert：两条流水线各自按标志推进、互不拖累
                 if r["need_embed"] and embed_ready and P:
+                    S.set_phase("embed", cid)
                     P.process_embed(db, cid)
                     _clear_flag(db, cid, "need_embed")
                 if r["need_insight"] and chat_ready and P:
+                    S.set_phase("classify", cid)
                     topic = P.process_insight(db, cid)
                     _clear_flag(db, cid, "need_insight")
                     if topic:
@@ -141,18 +147,23 @@ def _process_once():
                         affected_topics.update(topic if isinstance(topic, (set, list, tuple)) else [topic])
                 _maybe_dequeue(db, cid)
                 db.commit()
+                S.inc_done()
+                S.log("ok", f"已处理 {cid}")
             except Exception as e:
                 _mark_failed(db, cid, str(e), int(cfg.get("retry_limit", 1) or 0))
                 db.commit()
+                S.log("err", f"{cid} 失败：{e}")
 
         # 批末：对受影响主题防抖各重算一次综述（含被标 need_resummarize 的）
         if P and chat_ready:
             try:
+                S.set_phase("summarize", "")
                 P.resummarize_pending(db, extra_topics=affected_topics)
                 db.commit()
             except Exception as e:
-                import logging
-                logging.getLogger("ai_worker").warning("resummarize failed: %s", e)
+                S.log("err", f"主题综述失败：{e}")
+        S.end_round()
+        S.log("done", "本轮处理完成")
     finally:
         db.close()
 

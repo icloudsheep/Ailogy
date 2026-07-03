@@ -92,9 +92,11 @@ function showToast(msg, opts) {
   let wrap = document.getElementById("toast-wrap");
   if (!wrap) { wrap = document.createElement("div"); wrap.id = "toast-wrap"; document.body.appendChild(wrap); }
   const t = document.createElement("div");
-  t.className = "toast" + (opts.type === "err" ? " err" : "") + (opts.onClick ? " clickable" : "");
+  const loading = !!opts.loading;   // 无限加载态：带旋转指示、不自动消失，需手动 update/dismiss
+  t.className = "toast" + (opts.type === "err" ? " err" : "") + (opts.onClick ? " clickable" : "") + (loading ? " loading" : "");
   const title = opts.title || (opts.type === "err" ? "出错了" : "提示");
-  t.innerHTML = `<div class="t-title">${esc(title)}</div><div class="t-body">${esc(msg)}</div>`;
+  const spinner = loading ? '<span class="toast-spin" aria-hidden="true"></span>' : "";
+  t.innerHTML = `<div class="t-title">${spinner}<span class="t-title-txt">${esc(title)}</span></div><div class="t-body">${esc(msg)}</div>`;
   wrap.appendChild(t);
   void t.offsetWidth;
   requestAnimationFrame(() => t.classList.add("on"));
@@ -105,8 +107,14 @@ function showToast(msg, opts) {
     t.addEventListener("transitionend", (e) => { if (e.propertyName === "max-height") t.remove(); });
     setTimeout(() => t.remove(), 1100);
   };
+  // 供无限加载态实时更新标题/正文（如每秒刷新的 token 计数）
+  t.update = (m, ttl) => {
+    const bodyEl = t.querySelector(".t-body"); if (bodyEl && m != null) bodyEl.textContent = m;
+    const titEl = t.querySelector(".t-title-txt"); if (titEl && ttl != null) titEl.textContent = ttl;
+  };
+  t.dismiss = dismiss;
   if (opts.onClick) t.onclick = () => { opts.onClick(); dismiss(); };
-  const dur = opts.duration != null ? opts.duration : 5200;
+  const dur = opts.duration != null ? opts.duration : (loading ? 0 : 5200);
   if (dur > 0) t._timer = setTimeout(dismiss, dur);
   return t;
 }

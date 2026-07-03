@@ -20,14 +20,20 @@ def insights(
     devices: str = Query(None, description="逗号分隔的设备名；省略=全部"),
     db: Session = Depends(get_db),
 ):
+    """二级页面：某主题下的日志（entry→topic 映射），供按会话/月/天排布。"""
     topic_list = None if topics is None else [t for t in topics.split(",")] if topics != "" else []
     dev_list = None if devices is None else [d for d in devices.split(",")] if devices != "" else []
     return {"items": repo.list_ai_insights(db, topic_list, dev_list)}
 
 
 @router.get("/topics")
-def topics(db: Session = Depends(get_db)):
-    return {"topics": repo.list_ai_topics(db)}
+def topics(
+    devices: str = Query(None, description="逗号分隔的设备名；省略=全部"),
+    db: Session = Depends(get_db),
+):
+    """一级页面（爆炸图）：主题 + 综述 + 计数 + 代表色。可按设备过滤（计数只算该设备下的日志）。"""
+    dev_list = None if devices is None else [d for d in devices.split(",")] if devices != "" else []
+    return {"topics": repo.list_topics_full(db, dev_list)}
 
 
 @router.get("/devices")
@@ -156,3 +162,47 @@ def test_connection(db: Session = Depends(get_db)):
 @router.get("/rag/stats")
 def rag_stats(db: Session = Depends(get_db)):
     return repo.embedding_stats(db)
+
+
+# ── worker 实时状态 + 队列 + 失败重试 + 重置（供设置页「运行」子类）──
+@router.get("/worker/status")
+def worker_status(log_after: float = Query(0.0), db: Session = Depends(get_db)):
+    """worker 实时快照：忙/阶段/进度/累计 token/增量日志 + 队列概况 + 失败列表。
+    前端每秒轮询以更新 toast 的 token 与运行终端。"""
+    from .. import ai_status, ai_worker
+    snap = ai_status.snapshot(log_after=log_after)
+    return {
+        "status": snap,
+        "queue": ai_worker.queue_stats(db),
+        "failed": repo.list_failed_queue(db),
+    }
+
+
+class RetryReq(BaseModel):
+    client_id: str = None
+
+
+@router.post("/worker/retry")
+def worker_retry(req: RetryReq, db: Session = Depends(get_db)):
+    n = repo.retry_failed(db, req.client_id)
+    db.commit()
+    _nudge()
+    return {"ok": True, "retried": n}
+
+
+@router.post("/reset/classification")
+def reset_classification(db: Session = Depends(get_db)):
+    """重置主题分类 + 综述，全量重跑分类。"""
+    n = repo.reset_classification(db)
+    db.commit()
+    _nudge()
+    return {"ok": True, "enqueued": n}
+
+
+@router.post("/reset/embeddings")
+def reset_embeddings(db: Session = Depends(get_db)):
+    """重置向量知识库，全量重嵌入。"""
+    n = repo.reset_embeddings(db)
+    db.commit()
+    _nudge()
+    return {"ok": True, "enqueued": n}

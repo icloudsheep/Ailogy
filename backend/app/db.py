@@ -58,6 +58,14 @@ def _migrate():
                 conn.execute(text("ALTER TABLE ai_insights ADD COLUMN client_id TEXT DEFAULT ''"))
             if "day" not in ins:
                 conn.execute(text("ALTER TABLE ai_insights ADD COLUMN day TEXT DEFAULT ''"))
+            # 旧 demo 表无 client_id 的 UNIQUE 约束，upsert 的 ON CONFLICT 需要它。
+            # demo 遗留行 client_id 多为空/重复且无价值（会由 backfill+worker 重建），直接清空后建唯一索引。
+            has_uq = conn.execute(text(
+                "SELECT 1 FROM sqlite_master WHERE type='index' AND name='uq_insight_client'")).fetchone()
+            if not has_uq:
+                conn.execute(text("DELETE FROM ai_insights"))
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX uq_insight_client ON ai_insights(client_id)"))
 
 
 def _init_fts():
