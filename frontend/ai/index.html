@@ -24,11 +24,9 @@
 <div class="bg"></div>
 
 <header id="app-header" data-icon="sparkles" data-title="智能">
-  <!-- 返回按钮：仅在二级页面显示 -->
-  <button id="ai-back" class="month-pick" hidden><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> <b>返回主题</b></button>
   <button id="device-pick" class="month-pick"><svg class="icon" aria-hidden="true"><use href="#i-laptop"></use></svg> <b id="device-label">全部设备</b></button>
-  <!-- 二级页面：月选择器（一级隐藏） -->
-  <button id="month-pick" class="month-pick" hidden><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg> <b id="month-label"></b></button>
+  <!-- 返回按钮：仅二级页面显示，位于「全部设备」右侧 -->
+  <button id="ai-back" class="month-pick" hidden><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> <b>返回主题</b></button>
   <!-- 二级页面：天/会话选择器（一级隐藏；主题为固定隐藏筛选，不在此展示） -->
   <div id="header-row2" class="caps" hidden>
     <div class="cap-row"><span class="cap-tag">天</span><div id="cap-days" class="cap-list"></div></div>

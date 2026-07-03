@@ -205,6 +205,7 @@ const RunAPI = {
 function fillRunParams(cfg) {
   if (!cfg) return;
   if (_q("ai-worker-enabled")) _q("ai-worker-enabled").checked = cfg.worker_enabled !== false;
+  if (_q("ai-batch-size")) _q("ai-batch-size").value = cfg.batch_size || 20;
   if (_q("ai-poll-interval")) _q("ai-poll-interval").value = cfg.poll_interval || 20;
   if (_q("ai-retry-limit")) _q("ai-retry-limit").value = cfg.retry_limit != null ? cfg.retry_limit : 1;
   if (_q("ai-recompute")) _q("ai-recompute").value = cfg.recompute_on_update || "embed";
@@ -213,6 +214,7 @@ function fillRunParams(cfg) {
 if (_q("ai-save-run")) _q("ai-save-run").onclick = async () => {
   const patch = {
     worker_enabled: _q("ai-worker-enabled").checked,
+    batch_size: parseInt(_q("ai-batch-size").value, 10) || 20,
     poll_interval: parseInt(_q("ai-poll-interval").value, 10) || 20,
     retry_limit: parseInt(_q("ai-retry-limit").value, 10) || 0,
     recompute_on_update: _q("ai-recompute").value,

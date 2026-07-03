@@ -51,27 +51,50 @@
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 .galaxy-label.on { opacity: 1; }
 
-/* 连接中心与节点的淡线（SVG） */
-.galaxy-rays { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: visible; }
-.galaxy-ray { stroke-width: 1.5; opacity: .22; stroke-linecap: round;
-  transition: opacity calc(.3s * var(--anim-k)) ease; }
+/* 选中态节点：放大 + 主题色强光环 + 对号（与日志节点选中一致），不脉动 */
+.galaxy-node .gn-check { position: absolute; inset: 0; display: grid; place-items: center;
+  opacity: 0; transform: scale(.4); transition: opacity calc(.22s * var(--anim-k)) ease,
+    transform calc(.28s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.4); }
+.galaxy-node .gn-check .icon { width: 46%; height: 46%; color: #fff; stroke-width: 2.6;
+  filter: drop-shadow(0 1px 3px rgba(20,28,60,.6)); }
+.galaxy-node.selected { z-index: 8; animation: none;
+  transform: translate(-50%,-50%) scale(1.5);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 34%, transparent), 0 0 30px var(--c); }
+.galaxy-node.selected .gn-emo { opacity: 0; transform: scale(.5); transition: opacity calc(.2s * var(--anim-k)); }
+.galaxy-node.selected .gn-check { opacity: 1; transform: scale(1); }
+/* 节点离场：缩回中心淡出 */
+.galaxy-node.leaving { opacity: 0; transform: translate(-50%,-50%) scale(.2);
+  transition: opacity calc(.4s * var(--anim-k)) ease, transform calc(.4s * var(--anim-k)) cubic-bezier(.4,0,.6,1); }
 
 .galaxy-empty { position: absolute; left: 50%; top: 58%; transform: translate(-50%,0); text-align: center; z-index: 4; }
 .galaxy-empty .empty-main { font-size: 16px; font-weight: 650; color: var(--txt); }
 .galaxy-empty .empty-sub { font-size: 13px; color: var(--dim); margin-top: 6px; }
 
-/* 主题综述卡片：居中浮层，玻璃磨砂 */
-.topic-card { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
-  background: rgba(20,26,44,.32); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
-  animation: tc-fade calc(.22s * var(--anim-k)) ease both; }
-@keyframes tc-fade { from { opacity: 0; } to { opacity: 1; } }
-.topic-card-inner { width: min(560px, 92vw); max-height: 76vh; display: flex; flex-direction: column;
-  border-radius: 18px; padding: 20px 22px; box-sizing: border-box;
-  background: var(--lg-bg); border: var(--lg-border);
-  box-shadow: 0 24px 60px -20px rgba(20,26,54,.6), var(--lg-inset);
-  backdrop-filter: blur(20px) saturate(185%); -webkit-backdrop-filter: blur(20px) saturate(185%);
-  animation: tc-pop calc(.32s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.2) both; }
-@keyframes tc-pop { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+/* 爆炸图整体：进入二级时最小化消失、返回时居中放大回归 */
+.ai-galaxy { transition: top calc(.42s * var(--anim-k)) cubic-bezier(.2,.8,.2,1),
+  transform calc(.4s * var(--anim-k)) cubic-bezier(.4,0,.6,1), opacity calc(.36s * var(--anim-k)) ease;
+  transform-origin: center; }
+.ai-galaxy.minimized { transform: scale(.25); opacity: 0; }
+.ai-galaxy.restoring { transform: scale(.35); opacity: 0; }   /* 起始态；移除类后过渡回 scale(1) */
+/* 打开综述：整图向左平移（不缩小），把空间让给右侧综述面板，
+   被选中节点由 JS 移到左半区中心并放大，保证它居中且不被面板遮挡。 */
+.ai-galaxy.card-open { transform: translateX(-24%); }
+
+/* 主题综述面板：右侧滑出，日志结构、无背景模糊，占满右侧空间；不铺满全屏、不遮挡被选节点。
+   left 从「洞察核右侧」起（给爆炸图/被选节点留出左侧空间），right 贴边。 */
+.topic-card[hidden] { display: none !important; }
+.topic-card { position: fixed; left: max(46%, 420px); right: clamp(16px,2vw,28px);
+  top: calc(var(--topbar-h, 150px) + 16px); bottom: 20px; z-index: 40;
+  display: flex; pointer-events: none; }
+.topic-card-inner { flex: 1; min-width: 0; display: flex; flex-direction: column;
+  border-radius: 16px; padding: 18px 20px; box-sizing: border-box; pointer-events: auto;
+  background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
+  opacity: 0; transform: translateX(40px) scale(.98);
+  transition: opacity calc(.3s * var(--anim-k)) ease, transform calc(.34s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.15); }
+.topic-card.on .topic-card-inner { opacity: 1; transform: none; }
+/* 进入二级时向右缩放关闭 */
+.topic-card.closing-right .topic-card-inner { opacity: 0; transform: translateX(60px) scale(.9);
+  transition: opacity calc(.3s * var(--anim-k)) ease, transform calc(.34s * var(--anim-k)) cubic-bezier(.4,0,.6,1); }
 .topic-card-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
 .topic-card-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c, #6ea8fe);
   box-shadow: 0 0 10px var(--c, #6ea8fe); flex: none; }
@@ -81,9 +104,17 @@
   color: var(--dim); font-size: 15px; line-height: 1; padding: 4px 6px; border-radius: 6px; }
 .topic-card-close:hover { color: var(--txt); background: color-mix(in srgb, var(--txt) 10%, transparent); }
 .topic-card-body { overflow: auto; font-size: 14px; line-height: 1.7; color: var(--txt); flex: 1; }
-.topic-card-body:empty::before { content: "（该主题综述生成中…）"; color: var(--dim); }
+.topic-card-empty { color: var(--dim); font-size: 13px; line-height: 1.6; }
 .topic-card-actions { margin-top: 16px; display: flex; justify-content: flex-end; }
 .topic-card-actions .modal-btn { cursor: pointer; }
 
-/* 二级页面泳道：沿用 viewer 的 .wrap/.left/.right；这里仅确保它在 AI 页正确铺满 */
-.ai-lane[hidden] { display: none; }
+/* 二级页面泳道：沿用 viewer 的 .wrap/.left/.right。hidden 强制隐藏（.wrap 是 display:flex）。 */
+.ai-lane[hidden] { display: none !important; }
+/* 进入：泳道从左、详情从右缩小态放大进入；返回：泳道向左缩小消失、详情向右缩小消失 */
+.ai-lane { transition: none; }
+.ai-lane.entering .left { transform: scale(.9) translateX(-30px); opacity: 0; }
+.ai-lane.entering .right { transform: scale(.9) translateX(30px); opacity: 0; }
+.ai-lane .left, .ai-lane .right {
+  transition: transform calc(.4s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.1), opacity calc(.36s * var(--anim-k)) ease; }
+.ai-lane.leaving .left { transform: scale(.7) translateX(-80px); opacity: 0; }
+.ai-lane.leaving .right { transform: scale(.7) translateX(80px); opacity: 0; }

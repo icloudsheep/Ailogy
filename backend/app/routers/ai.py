@@ -68,6 +68,12 @@ class ConfigPatch(BaseModel):
     embed_api_key: str = None
     embed_model: str = None
     prompts: dict = None
+    # 运行参数（设置「运行」子类）
+    worker_enabled: bool = None
+    batch_size: int = None
+    poll_interval: int = None
+    retry_limit: int = None
+    recompute_on_update: str = None
 
 
 @router.get("/config")

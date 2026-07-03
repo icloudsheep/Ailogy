@@ -44,62 +44,85 @@ async function loadGalaxy() {
   renderGalaxy();
 }
 
-let _labelTimer = 0;
+// 原子结构布局：按 entry_count 降序分环，内环最大、外环渐小。节点 DOM 按 topic 复用，
+// 定时刷新时只更新 left/top/size（CSS transition 补间），不重建；不画中心连线。
+// 选中（打开综述）的主题节点不参与刷新重排、放大并显示对号。
+const _galaxyNodes = {};   // topic -> {node, label}
+function ringLayout(topics, cx, cy, baseR) {
+  // 分环：每环容量随环号增大（1、6、12…），内环大节点、外环小节点
+  const rings = [];
+  let idx = 0, ring = 0;
+  while (idx < topics.length) {
+    const cap = ring === 0 ? 1 : ring * 6;   // 原子壳层式容量
+    rings.push(topics.slice(idx, idx + cap));
+    idx += cap; ring++;
+  }
+  const pos = [];
+  rings.forEach((items, r) => {
+    const radius = r === 0 ? 0 : baseR * (0.55 + r * 0.62);
+    const sizeBase = Math.max(34, 78 - r * 14);   // 内环最大，外环渐小
+    items.forEach((t, i) => {
+      const ang = items.length === 1 && r === 0 ? 0 : (i / items.length) * Math.PI * 2 - Math.PI / 2 + r * 0.4;
+      pos.push({ t, x: cx + Math.cos(ang) * radius, y: cy + Math.sin(ang) * radius, size: sizeBase, ring: r });
+    });
+  });
+  return pos;
+}
+
 function renderGalaxy() {
   const stage = $("galaxy-stage");
   const empty = $("galaxy-empty");
-  // 清掉旧节点/标签/连线（保留核）
-  stage.querySelectorAll(".galaxy-node, .galaxy-label, .galaxy-rays").forEach((e) => e.remove());
   const topics = ST.topics;
   if (empty) empty.hidden = topics.length > 0;
-  if (!topics.length) return;
 
   const rect = stage.getBoundingClientRect();
   const cx = rect.width / 2, cy = rect.height / 2;
-  const R = Math.max(140, Math.min(rect.width, rect.height) * 0.34);
-  const maxCnt = Math.max(...topics.map((t) => t.entry_count || 1));
+  const baseR = Math.max(120, Math.min(rect.width, rect.height) * 0.24);
+  const layout = ringLayout(topics, cx, cy, baseR);
+  const seen = new Set();
 
-  // 连线层
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("class", "galaxy-rays");
-  stage.appendChild(svg);
-
-  topics.forEach((t, i) => {
-    const ang = (i / topics.length) * Math.PI * 2 - Math.PI / 2;
-    // 半径按数量微调（大主题略近核、更聚焦），并加轻微错落
-    const rr = R * (0.82 + 0.28 * (i % 2 ? 1 : 0.6));
-    const x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr;
-    const color = t.color || colorOf(t.topic);
-    const size = 40 + 26 * Math.min(1, (t.entry_count || 1) / maxCnt);  // 40~66px 按数量
-
-    // 连线
-    const ln = document.createElementNS(ns, "line");
-    ln.setAttribute("x1", cx); ln.setAttribute("y1", cy);
-    ln.setAttribute("x2", x); ln.setAttribute("y2", y);
-    ln.setAttribute("class", "galaxy-ray"); ln.setAttribute("stroke", color);
-    svg.appendChild(ln);
-
-    // 节点
-    const node = document.createElement("div");
-    node.className = "galaxy-node enter";
+  layout.forEach((p, i) => {
+    const t = p.t, color = t.color || colorOf(t.topic);
+    seen.add(t.topic);
+    let entry = _galaxyNodes[t.topic];
+    if (!entry) {
+      // 新节点：从中心迸发入场
+      const node = document.createElement("div");
+      node.className = "galaxy-node enter";
+      node.innerHTML = `<span class="gn-emo">${topicEmoji(t.topic)}</span><span class="gn-check">${icon("check")}</span>`;
+      node.style.left = cx + "px"; node.style.top = cy + "px";
+      const label = document.createElement("div");
+      label.className = "galaxy-label";
+      node.addEventListener("mouseenter", () => label.classList.add("on"));
+      node.addEventListener("mouseleave", () => label.classList.remove("on"));
+      node.addEventListener("animationend", () => node.classList.remove("enter"), { once: true });
+      stage.appendChild(node); stage.appendChild(label);
+      entry = _galaxyNodes[t.topic] = { node, label };
+    }
+    const { node, label } = entry;
+    node.dataset.topic = t.topic;
     node.style.setProperty("--c", color);
-    node.style.left = x + "px"; node.style.top = y + "px";
-    node.style.width = size + "px"; node.style.height = size + "px";
-    node.style.setProperty("--pulse", (2.4 + (i % 5) * 0.5) + "s");   // 交替脉动周期
-    node.style.setProperty("--delay", (i % 4) * 0.4 + "s");
-    node.innerHTML = `<span class="gn-emo">${topicEmoji(t.topic)}</span>`;
-    node.addEventListener("animationend", () => node.classList.remove("enter"), { once: true });
-    // 悬停标签
-    const label = document.createElement("div");
-    label.className = "galaxy-label";
-    label.style.left = x + "px"; label.style.top = (y + size / 2) + "px";
+    node.style.setProperty("--pulse", (2.6 + (i % 5) * 0.5) + "s");
+    node.style.setProperty("--delay", (i % 4) * 0.35 + "s");
     label.textContent = t.topic;
-    stage.appendChild(label);
-    node.addEventListener("mouseenter", () => label.classList.add("on"));
-    node.addEventListener("mouseleave", () => label.classList.remove("on"));
-    node.onclick = () => openTopicCard(t);
-    stage.appendChild(node);
+    node.onclick = () => openTopicCard(t, node);
+    // 选中的节点：位置/大小锁定，不随刷新重排（保持在原位，避免综述被它遮挡时错位）
+    if (node.classList.contains("selected")) {
+      label.style.left = node.style.left; label.style.top = (parseFloat(node.style.top) + parseFloat(node.style.height) / 2) + "px";
+      return;
+    }
+    node.style.width = p.size + "px"; node.style.height = p.size + "px";
+    node.style.left = p.x + "px"; node.style.top = p.y + "px";
+    label.style.left = p.x + "px"; label.style.top = (p.y + p.size / 2) + "px";
+  });
+  // 移除已消失主题的节点（缩回中心淡出）
+  Object.keys(_galaxyNodes).forEach((tp) => {
+    if (!seen.has(tp)) {
+      const { node, label } = _galaxyNodes[tp];
+      node.classList.add("leaving"); label.remove();
+      setTimeout(() => node.remove(), 500);
+      delete _galaxyNodes[tp];
+    }
   });
 }
 
@@ -110,18 +133,48 @@ function topicEmoji(topic) {
   return _EMOJI_POOL[h % _EMOJI_POOL.length];
 }
 
-// ── 主题综述卡片 ──
-function openTopicCard(t) {
+// ── 主题综述面板（右侧滑出，日志样式，无背景模糊；打开时选中节点放大+对号、暂停刷新）──
+let _paused = false;                 // 打开综述后暂停一级刷新
+function openTopicCard(t, node) {
   const card = $("topic-card");
+  // 选中节点：清除旧选中、放大当前并显示对号
+  Object.values(_galaxyNodes).forEach((e) => e.node.classList.remove("selected"));
+  if (node) {
+    node.classList.add("selected");
+    // 把被选节点移到「左半区中心」：整图会向左平移(-24%)让出右侧给综述面板，
+    // 节点落在 stage 中心，配合平移即居中于可见的左侧区域，且放大后不被面板遮挡。
+    const stage = $("galaxy-stage");
+    const w = stage.clientWidth, h = stage.clientHeight;
+    node.style.left = (w / 2) + "px"; node.style.top = (h / 2) + "px";
+    const { label } = _galaxyNodes[t.topic] || {};
+    if (label) { label.style.left = (w / 2) + "px"; label.style.top = (h / 2 + parseFloat(node.style.height || 60) / 2) + "px"; }
+  }
+  $("ai-galaxy").classList.add("card-open");
+  ST.selectedTopic = t; _paused = true;
   card.style.setProperty("--c", t.color || colorOf(t.topic));
   $("topic-card-name").textContent = t.topic;
   $("topic-card-cnt").textContent = `${t.entry_count || 0} 条日志`;
-  $("topic-card-body").innerHTML = renderMd(t.summary || "");
-  renderMermaid($("topic-card-body")); renderMath($("topic-card-body"));
-  $("topic-card-enter").onclick = () => { closeTopicCard(); enterTopic(t); };
+  const body = $("topic-card-body");
+  if ((t.summary || "").trim()) {
+    body.innerHTML = renderMd(t.summary);
+    renderMermaid(body); renderMath(body);
+  } else {
+    body.innerHTML = '<div class="topic-card-empty">该主题暂无综述。综述由后台在配置好对话模型后自动生成；'
+      + '可在「设置 → 智能 → 运行」查看处理进度或手动触发。</div>';
+  }
+  $("topic-card-enter").onclick = () => enterTopic(t);
   card.hidden = false;
+  requestAnimationFrame(() => card.classList.add("on"));   // 右侧滑入
 }
-function closeTopicCard() { $("topic-card").hidden = true; }
+function closeTopicCard() {
+  const card = $("topic-card");
+  card.classList.remove("on");
+  setTimeout(() => { card.hidden = true; }, 320);
+  $("ai-galaxy").classList.remove("card-open");   // 整图平移复位
+  Object.values(_galaxyNodes).forEach((e) => e.node.classList.remove("selected"));
+  renderGalaxy();   // 复位后重排选中节点回其原轨道位
+  ST.selectedTopic = null; _paused = false;
+}
 
 // ══════════ 二级：主题内泳道 ══════════
 const ROW_H = 64, COL_W = 60, COL_X0 = 30, TOP_PAD = 24;
@@ -130,21 +183,37 @@ const NODE_HALF = 17, RIGHT_PAD = 8;
 
 async function enterTopic(t) {
   ST.level = 2; ST.topic = t.topic;
-  // 切换页面显隐
-  $("ai-galaxy").hidden = true;
-  $("ai-lane").hidden = false;
+  // 综述面板向右缩放关闭
+  const card = $("topic-card");
+  card.classList.remove("on"); card.classList.add("closing-right");
+  setTimeout(() => { card.hidden = true; card.classList.remove("closing-right"); }, 340);
+  // 爆炸图最小化消失（缩小淡出）——先去掉平移态，避免与 minimized 的 scale 叠加
+  const galaxy = $("ai-galaxy");
+  galaxy.classList.remove("card-open");
+  galaxy.classList.add("minimized");
+  setTimeout(() => { galaxy.hidden = true; galaxy.classList.remove("minimized"); }, 400);
+  Object.values(_galaxyNodes).forEach((e) => e.node.classList.remove("selected"));
+  _paused = false;
+  // 二级：泳道 + 详情从缩小态放大进入
+  const lane = $("ai-lane");
+  lane.hidden = false; lane.classList.add("entering");
+  requestAnimationFrame(() => lane.classList.remove("entering"));
   $("ai-back").hidden = false;
-  $("month-pick").hidden = false;
   await loadTopicLane();
 }
 
 function backToGalaxy() {
   ST.level = 1; ST.topic = null; ST.active = null;
-  $("ai-lane").hidden = true;
+  // 泳道向左缩小消失、详情向右缩小消失
+  const lane = $("ai-lane");
+  lane.classList.add("leaving");
+  setTimeout(() => { lane.hidden = true; lane.classList.remove("leaving"); }, 360);
   $("ai-back").hidden = true;
-  $("month-pick").hidden = true;
   $("header-row2").hidden = true;
-  $("ai-galaxy").hidden = false;
+  // 爆炸图居中放大回归
+  const galaxy = $("ai-galaxy");
+  galaxy.hidden = false; galaxy.classList.add("restoring");
+  requestAnimationFrame(() => galaxy.classList.remove("restoring"));
   loadGalaxy();
 }
 
@@ -158,7 +227,6 @@ async function loadTopicLane() {
   // 默认全选天、不隐藏会话
   ST.selectedDays = new Set(ST.days.map((d) => d.day));
   ST.hiddenSessions = new Set();
-  updateMonthLabel();
   renderLane();
 }
 
@@ -172,11 +240,6 @@ function buildLaneModel() {
   }
   ST.sessions = Object.values(sessMap);
   ST.days = Object.keys(dayMap).sort().reverse().map((d) => ({ day: d }));
-}
-
-function updateMonthLabel() {
-  const el = $("month-label");
-  if (el) el.textContent = ST.topic || "";
 }
 
 // 可见性
@@ -321,13 +384,13 @@ async function initAI() {
   const devPick = $("device-pick"); if (devPick) devPick.onclick = openDevicePicker;
   $("ai-back").onclick = backToGalaxy;
   $("topic-card-close").onclick = closeTopicCard;
-  $("topic-card").addEventListener("mousedown", (e) => { if (e.target === $("topic-card")) closeTopicCard(); });
   bindGlobalMenu();
   if (typeof initDebugTag === "function") initDebugTag("front/ai");
   try { const dr = await AI.devices(); ST.devices = dr.devices || []; } catch (_) {}
   updateDeviceLabel();
   await loadGalaxy();
-  // 轻量轮询：主题/综述由后台 worker 异步产出，定时刷新一级图
-  setInterval(() => { if (ST.level === 1 && !document.hidden) loadGalaxy(); }, 8000);
+  // 轻量轮询：主题/综述由后台 worker 异步产出，定时刷新一级图（补间过渡）。
+  // 打开综述（_paused）或在二级页面时不刷新，避免打断查看。
+  setInterval(() => { if (ST.level === 1 && !_paused && !document.hidden) loadGalaxy(); }, 8000);
 }
 window.addEventListener("DOMContentLoaded", initAI);

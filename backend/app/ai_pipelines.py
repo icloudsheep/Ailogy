@@ -64,6 +64,11 @@ def process_embed(db, client_id):
             ai_config.save_config(db, {"embed_dim": int(r["dim"])})
 
 
+def has_insight(db, client_id):
+    """该条是否已分类过（用于「编辑后是否重新分类」的判定）。"""
+    return repo.get_insight_topic(db, client_id) is not None
+
+
 def _chat_endpoint(db):
     cfg = ai_config.get_config_raw(db)
     return cfg.get("base_url"), cfg.get("api_key"), cfg.get("chat_model"), cfg.get("prompts") or {}

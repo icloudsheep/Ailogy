@@ -52,6 +52,7 @@ DEFAULT_CONFIG = {
     # 运行参数（worker 读取；设置页「运行」子类可调）
     "worker_enabled": True,         # 总开关：关则 worker 不处理队列
     "poll_interval": 20,            # 兜底轮询间隔（秒）——事件唤醒之外的保险
+    "batch_size": 20,              # 每轮最多处理多少条日志（设置可调）
     "retry_limit": 1,              # 失败自动重试上限，超过则 paused（等手动重试/新变更带起）
     "recompute_on_update": "embed", # 日志编辑后重算范围：'embed'=只重向量(默认b) / 'all'=分类+向量
     "prompts": dict(DEFAULT_PROMPTS),
@@ -136,6 +137,8 @@ def save_config(db, patch: dict) -> dict:
         nxt["worker_enabled"] = bool(patch["worker_enabled"])
     if "poll_interval" in patch and isinstance(patch["poll_interval"], int):
         nxt["poll_interval"] = max(5, min(patch["poll_interval"], 3600))
+    if "batch_size" in patch and isinstance(patch["batch_size"], int):
+        nxt["batch_size"] = max(1, min(patch["batch_size"], 500))
     if "retry_limit" in patch and isinstance(patch["retry_limit"], int):
         nxt["retry_limit"] = max(0, min(patch["retry_limit"], 10))
     if "recompute_on_update" in patch and patch["recompute_on_update"] in ("embed", "all"):

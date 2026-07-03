@@ -170,6 +170,8 @@
           <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-gear"></use></svg> 运行参数</div>
           <div class="ai-row"><span class="ai-k">自动处理</span>
             <label class="ai-inline-toggle" style="margin-left:0"><input type="checkbox" id="ai-worker-enabled" checked /> 开启后台处理</label></div>
+          <div class="ai-row"><span class="ai-k">每轮处理</span>
+            <input id="ai-batch-size" class="ai-flat" type="number" min="1" max="500" placeholder="20" /><span class="ai-unit">条</span></div>
           <div class="ai-row"><span class="ai-k">轮询兜底</span>
             <input id="ai-poll-interval" class="ai-flat" type="number" min="5" max="3600" placeholder="20" /><span class="ai-unit">秒</span></div>
           <div class="ai-row"><span class="ai-k">失败重试上限</span>

@@ -138,10 +138,17 @@ def _process_once():
                     S.set_phase("embed", cid)
                     P.process_embed(db, cid)
                     _clear_flag(db, cid, "need_embed")
+                topic = None
                 if r["need_insight"] and chat_ready and P:
-                    S.set_phase("classify", cid)
-                    topic = P.process_insight(db, cid)
-                    _clear_flag(db, cid, "need_insight")
+                    # 尊重「编辑后重算范围」：recompute_on_update='embed' 时，已分类过的条目
+                    # 被编辑不重新分类（分类已落库、保持不变），只有从未分类的新条目才分类。
+                    already = P.has_insight(db, cid)
+                    if already and cfg.get("recompute_on_update", "embed") == "embed":
+                        _clear_flag(db, cid, "need_insight")   # 跳过重分类，直接清标志
+                    else:
+                        S.set_phase("classify", cid)
+                        topic = P.process_insight(db, cid)
+                        _clear_flag(db, cid, "need_insight")
                     if topic:
                         # process_insight 可能返回单个 topic 或 {新,旧} 集合（改主题时）
                         affected_topics.update(topic if isinstance(topic, (set, list, tuple)) else [topic])
@@ -170,15 +177,18 @@ def _process_once():
 
 def _fetch_batch(db):
     """取本轮待办：未 paused 的 upsert/delete。
+    每轮上限由配置 batch_size 决定（设置可调）。
     排序策略：删除优先（清理快）→ 新条目(attempts=0)优先 → 失败条目(attempts>0)垫后且限流。
     这样一批失败不会堵住新日志的及时处理。"""
+    cfg = ai_config.get_config_raw(db)
+    batch = max(1, int(cfg.get("batch_size", BATCH) or BATCH))
     # 新条目 + 删除：主批
     fresh = db.execute(text(
         "SELECT client_id, op, need_insight, need_embed, attempts FROM ai_queue "
         "WHERE paused=0 AND attempts=0 AND (need_insight=1 OR need_embed=1 OR op='delete') "
         "ORDER BY (op='delete') DESC, enqueued_at ASC LIMIT :lim"
-    ), {"lim": BATCH}).mappings().all()
-    remaining = BATCH - len(fresh)
+    ), {"lim": batch}).mappings().all()
+    remaining = batch - len(fresh)
     retry = []
     if remaining > 0:
         retry = db.execute(text(
