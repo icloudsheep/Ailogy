@@ -45,7 +45,12 @@ function syncTopbar() {
   const el = document.getElementById("app-header");
   if (!el) return;
   document.documentElement.style.setProperty("--topbar-h", el.offsetHeight + "px");
+  // 首次测量落定后再开启「顶栏高度联动」的过渡（padding-top / notice.top / toast.top），
+  // 避免 --topbar-h 从默认 150px 校正为实测值时触发一次不必要的抖动动画。
+  if (!_tbReady) { _tbReady = true; requestAnimationFrame(() =>
+    requestAnimationFrame(() => document.documentElement.classList.add("tb-ready"))); }
 }
+let _tbReady = false;
 window.addEventListener("resize", syncTopbar);
 window.addEventListener("scroll", syncTopbar, { passive: true });
 // 顶栏高度会随内容（如天/会话胶囊行的出现与换行）变化；用 ResizeObserver 实时回填 --topbar-h，

@@ -20,3 +20,10 @@ function saveAlias(code, alias) {
 function sessDisplay(code, _fallbackName) {
   return aliasOf(code) || code;
 }
+// 展示名（HTML）：有别名时在其后追加半透明小字括号旧名（原会话代号），
+// 让用户重命名后仍能对照原始会话。无别名则等同 esc(code)。调用方负责已引入 esc()。
+function sessDisplayHtml(code, _fallbackName) {
+  const alias = aliasOf(code);
+  if (!alias) return esc(code);
+  return `${esc(alias)}<span class="old-name">(${esc(code)})</span>`;
+}

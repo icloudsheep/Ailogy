@@ -4,8 +4,8 @@
   .box { flex: none; position: relative; overflow: hidden; background: var(--lg-bg); border: var(--lg-border); border-radius: 16px;
     padding: 16px 20px; backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%);
     box-shadow: 0 14px 38px -22px rgba(40,50,90,.5), var(--lg-inset);
-    transition: opacity .28s ease, transform .28s cubic-bezier(.2,.8,.2,1); }
-  .box.fresh { animation: fadein .84s cubic-bezier(.2,.8,.2,1) both; }
+    transition: opacity calc(.28s * var(--anim-k)) ease, transform calc(.28s * var(--anim-k)) cubic-bezier(.2,.8,.2,1); }
+  .box.fresh { animation: fadein calc(.84s * var(--anim-k)) cubic-bezier(.2,.8,.2,1) both; }
   /* 液态玻璃顶部镜面高光 */
   .box::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 42%;
     background: linear-gradient(to bottom, rgba(255,255,255,.35), transparent); pointer-events: none; z-index: 0; }
@@ -28,7 +28,7 @@
   .d-actions { position: absolute; top: 14px; right: 16px; z-index: 3; display: flex; gap: 8px; }
   .d-act { font: inherit; font-size: 13px; padding: 8px 15px; border-radius: 10px; cursor: pointer;
     color: var(--txt); background: var(--lg-bg); border: var(--lg-border);
-    box-shadow: var(--lg-inset); transition: transform .18s, box-shadow .3s, background .25s;
+    box-shadow: var(--lg-inset); transition: transform calc(.18s * var(--anim-k)), box-shadow calc(.3s * var(--anim-k)), background calc(.25s * var(--anim-k));
     display: inline-flex; align-items: center; gap: 5px; line-height: 1; white-space: nowrap; }
   .d-act:hover { transform: translateY(-1px); background: rgba(110,168,254,.14); }
   .d-act.danger:hover { background: rgba(255,120,110,.16); color: #b4453a; }

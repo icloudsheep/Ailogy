@@ -8,6 +8,7 @@
   try {
     document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
     document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
+    document.documentElement.setAttribute("data-anim", localStorage.getItem("ailogy:anim") || "default");
   } catch (e) {}
 </script>
 <link rel="stylesheet" href="/static/frontend/shared/css/theme.css">
@@ -30,6 +31,30 @@
     <div class="opt-row" id="mode-row">
       <button class="opt" data-mode="light"><svg class="icon" aria-hidden="true"><use href="#i-sun"></use></svg> 光明</button>
       <button class="opt" data-mode="dark"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg> 黑暗</button>
+    </div>
+  </section>
+  <section class="box">
+    <div class="bt">动画速率
+      <span class="bt-info" tabindex="0" aria-label="动画速率说明"
+            data-tip="控制全站过渡与动效的快慢：「优雅」最慢、从容舒展；「默认」适中；「极速」最快、干脆利落。仅影响动画时长，不改变任何功能。若系统开启了「减少动态效果」，动画会自动近乎关闭。">
+        <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+      </span>
+    </div>
+    <div class="opt-row" id="anim-row">
+      <button class="opt" data-anim="graceful">优雅</button>
+      <button class="opt" data-anim="default">默认</button>
+      <button class="opt" data-anim="rapid">极速</button>
+    </div>
+  </section>
+  <section class="box">
+    <div class="bt">泳道页
+      <span class="bt-info" tabindex="0" aria-label="灰态含义"
+            data-tip="「灰态」会话：在当前所选的「天」范围内没有任何日志，因而无法显示、也不能切换显隐的会话。开启后这类会话胶囊会自动隐藏，让选择器更清爽；一旦某天重新纳入使其有内容，会自动恢复。">
+        <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg>
+      </span>
+    </div>
+    <div class="opt-row" id="viewer-row">
+      <button class="opt" id="opt-hide-grey"><svg class="icon" aria-hidden="true"><use href="#i-eyeOff"></use></svg> 自动隐藏灰态会话</button>
     </div>
   </section>
 </main>

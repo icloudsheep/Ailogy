@@ -6,18 +6,24 @@
      所以可见的滚动条只落在 banner 之下的区域，body 仍 overflow:hidden、无整页滚动条。 */
   body.viewer-page { height: 100vh; min-height: 0; overflow: hidden; }
   body.viewer-page .topbar { position: fixed; top: 0; left: 0; right: 0; }
+  /* 间距全部由两个面板自身的 padding 承担：父容器不再有 gap（flex 自动间距）与 padding（外边距）。 */
   body.viewer-page .wrap { position: absolute; inset: 0; min-height: 0;
-    display: flex; gap: clamp(16px,2.5vw,32px); align-items: stretch;
-    padding: 0 clamp(12px,2vw,24px); box-sizing: border-box; }
+    display: flex; gap: 0; align-items: stretch;
+    padding: 0; box-sizing: border-box; }
   /* 左侧泳道：独立滚动视口，顶部留出 banner 高度（内容起点在 banner 之下，滚动时滑入其后）。
      overscroll-behavior:contain 阻断滚动链——滚到顶/底时滚轮事件不再冒泡带动其它区域。
      隐藏原生滚动条：其轨道会一直顶到 y=0、被 banner 盖住，改用只落在 banner 之下的自绘滚动条（见 .vscroll）。 */
   .left { flex: none; height: 100%; overflow-y: auto; overflow-x: hidden;
     overscroll-behavior: contain; scrollbar-width: none;
     padding-top: calc(var(--topbar-h, 150px) + 16px); padding-bottom: 20px;
-    padding-left: 18px; padding-right: 18px; box-sizing: border-box; }
+    /* 泳道左右内边距：左 20px、右(与日志相邻侧) 16px */
+    padding-left: 20px; padding-right: 16px; box-sizing: border-box; }
+  /* banner 高度变化（胶囊换行 / 提示条展开）时，顶部留白同步补间避让，不再瞬跳。
+     首帧后才启用（.tb-ready），避免 --topbar-h 从默认值校正为实测值时的一次性抖动。 */
+  html.tb-ready .left, html.tb-ready .right {
+    transition: padding-top calc(.42s * var(--anim-k)) cubic-bezier(.2,.8,.2,1); }
   .left::-webkit-scrollbar { width: 0; height: 0; display: none; }
-  .stage { position: relative; transition: width .5s cubic-bezier(.2,.8,.2,1), height .5s cubic-bezier(.2,.8,.2,1); }
+  .stage { position: relative; transition: width calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1), height calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1); }
   /* 入场动画交给各节点自己的 pop（见下）；不再对整块 stage 做 opacity 淡入——
      父级 opacity<1 会令子元素 .day-band 的 backdrop-filter 在动画期间失效，
      背景从半透明闪成不透明；同时位移式淡入还会造成滚动条瞬时闪现。 */
@@ -25,39 +31,51 @@
   .right { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 14px;
     height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
     padding-top: calc(var(--topbar-h, 150px) + 16px); padding-bottom: 20px;
-    padding-left: 22px; padding-right: 22px; box-sizing: border-box; }
+    /* 日志左右内边距：左(与泳道相邻侧) 16px、右 20px */
+    padding-left: 16px; padding-right: 20px; box-sizing: border-box; }
   .right::-webkit-scrollbar { width: 0; height: 0; display: none; }
   /* 自绘竖向滚动条：应需求设为完全透明（不显示），仅保留其占位与拖拽热区逻辑。 */
   .vscroll { position: fixed; width: 9px; z-index: 19; pointer-events: none; opacity: 0;
-    transition: opacity .3s ease; }
+    transition: opacity calc(.3s * var(--anim-k)) ease; }
   .vscroll.show { opacity: 0; }
   .vscroll-thumb { position: absolute; left: 0; width: 100%; border-radius: 9px;
-    background: transparent; pointer-events: auto; cursor: pointer; transition: background .2s; }
+    background: transparent; pointer-events: auto; cursor: pointer; transition: background calc(.2s * var(--anim-k)); }
 
   /* 左侧泳道 */
   svg.rails { position: absolute; inset: 0; overflow: visible; pointer-events: none; z-index: 1; }
   .rail { stroke-width: 6; fill: none; opacity: .5; stroke-linecap: round; stroke-dasharray: var(--len); stroke-dashoffset: var(--len);
-          animation: draw 2s cubic-bezier(.4,0,.2,1) forwards; }
+          animation: draw calc(2s * var(--anim-k)) cubic-bezier(.4,0,.2,1) forwards; }
   /* 延伸线：贯穿整列、半宽(3)半透明，淡淡延展到页面高度；用 transform 平移，泳道增减时平滑滑动 */
   .rail-ext { stroke-width: 3; fill: none; opacity: .25; stroke-linecap: round;
-              transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .38s ease, stroke .3s ease; }
-  /* 加粗实色段：以「天」为单位，每条泳道当天首→末节点之间的连线，粗(9px)且色彩更实，突出当天活动区间 */
-  .rail-seg { stroke-width: 9; fill: none; opacity: .6; stroke-linecap: round;
-              transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .38s ease, stroke .3s ease,
-                y1 .5s cubic-bezier(.2,.8,.2,1), y2 .5s cubic-bezier(.2,.8,.2,1); }
+              transition: transform calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1), opacity calc(.38s * var(--anim-k)) ease, stroke calc(.3s * var(--anim-k)) ease; }
+  /* 加粗实色段：以「天」为单位，每条泳道当天首→末节点之间的连线。
+     改用 HTML div（top/height/left 皆可动画），与节点同一套 transition，始终跟随节点、严丝合缝相连。
+     宽度即原描边粗细(9px)，两端圆角模拟 round 线帽；translateX(-50%) 使其居中于泳道列。 */
+  #stage .rail-seg { position: absolute; width: 9px; border-radius: 5px; opacity: .6; z-index: 1;
+    transform: translateX(-50%); transform-origin: center; pointer-events: none;
+    transition: top calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1),
+                height calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1),
+                left calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1),
+                opacity calc(.34s * var(--anim-k)) ease, background calc(.3s * var(--anim-k)) ease; }
+  /* 离场（整条泳道横向收拢 / 整天纵向收拢）由 JS leaveEl 打内联 transform+transition 统一驱动，
+     使同批元素同向同帧作为整体消失；此处不再单独定义 .leaving 规则。 */
+  /* 天分组：覆盖整个 stage 的透明层，装某一天的「日期标识 + 节点 + 加粗连线」。
+     整组以该天左上角为原点做缩放+透明度动画（出现/消失作为一个整体，见 JS groupEnter/leaveGroup）。
+     inset:0 且不拦截指针（仅子元素可点）；z-index:2 使其中的节点浮于火箭轨道(z-index:1)之上。 */
+  #stage .day-group { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+  #stage .day-group > * { pointer-events: auto; }
   /* 时间线节点：作用域限定在 #stage 内，避免 .node 类名泄漏到 mermaid 图的同名节点。
      left/top 走 transition，泳道增减导致的重排/移列会平滑滑动；入场用 pop（仅 .enter 触发）。 */
   #stage .node { position: absolute; width: 34px; height: 34px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2;
-    transition: left .5s cubic-bezier(.2,.8,.2,1), top .5s cubic-bezier(.2,.8,.2,1); }
-  #stage .node.enter { animation: pop 1s cubic-bezier(.2,.9,.3,1.3) both; }
-  /* 节点离场：缩小淡出 */
-  #stage .node.leaving { animation: node-leave .34s cubic-bezier(.4,0,.6,1) forwards; pointer-events: none; }
-  @keyframes node-leave { to { opacity: 0; transform: translate(-50%, -50%) scale(.4); } }
+    transition: left calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1), top calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1); }
+  #stage .node.enter { animation: pop calc(1s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.3) both; }
+  /* 节点离场：由 JS leaveEl 统一驱动——整条泳道走则横向收拢(scaleX0)、整天走则纵向收拢(scaleY0)、
+     单条自消则原地缩 0；与同批的连线/日期标识同向、同帧、同时长，作为一个整体消失。 */
   #stage .node .knob { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; position: relative;
     background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--c) 78%, #fff), color-mix(in srgb, var(--c) 35%, #2a344a));
     border: 2px solid color-mix(in srgb, var(--c) 80%, #fff); font-size: 14px; line-height: 1;
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 16%, transparent), 0 4px 14px -2px var(--c);
-    transition: transform .44s, box-shadow .44s; }
+    transition: transform calc(.44s * var(--anim-k)), box-shadow calc(.44s * var(--anim-k)); }
   #stage .node .num { position: absolute; right: -5px; bottom: -5px; min-width: 16px; height: 16px; padding: 0 3px;
     border-radius: 9px; background: #28323e; border: 1.5px solid var(--c); color: #fff;
     font-size: 10px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
@@ -84,15 +102,15 @@
     box-shadow:
       0 0 20px -2px color-mix(in srgb, var(--c, #6ea8fe) 40%, transparent),   /* 外发光 */
       var(--lg-inset);
-    transition: top .5s cubic-bezier(.2,.8,.2,1), left .5s cubic-bezier(.2,.8,.2,1),
-      height .5s cubic-bezier(.2,.8,.2,1), opacity .35s ease; }
+    transition: top calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1), left calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1),
+      height calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1), opacity calc(.35s * var(--anim-k)) ease; }
   #stage .rocket-track.enter { opacity: 0; }
   #stage .rocket-track.leaving { opacity: 0; }
   /* 柔和外发光晕：更大范围的呼吸光环，强化「被捆在一起」的整体感 */
   #stage .rocket-track .rk-glow { position: absolute; inset: -5px; border-radius: 999px; z-index: -1;
     background: radial-gradient(60% 40% at 50% 50%,
       color-mix(in srgb, var(--c, #6ea8fe) 30%, transparent), transparent 72%);
-    filter: blur(6px); opacity: .8; animation: rk-breathe 3.2s ease-in-out infinite; }
+    filter: blur(6px); opacity: .8; animation: rk-breathe calc(3.2s * var(--anim-k)) ease-in-out infinite; }
   @keyframes rk-breathe { 0%,100% { opacity: .55; } 50% { opacity: .95; } }
   /* 贯穿脊线：胶囊中轴一条主题色实线，把段内各节点串起来（底部止于火箭图标之上） */
   #stage .rocket-track .rk-spine { position: absolute; left: 50%; top: 12px; bottom: 52px;
@@ -110,10 +128,10 @@
   /* full 段内节点保持常规大小；只让它们更贴近（行距在 JS 中收紧） */
   #stage .node:hover .knob { transform: scale(1.16); }
   /* knob 内的 emoji 与“查看中”图标叠放居中；图标默认隐藏 */
-  #stage .node .knob-emo { transition: opacity .22s ease, transform .22s ease; }
+  #stage .node .knob-emo { transition: opacity calc(.22s * var(--anim-k)) ease, transform calc(.22s * var(--anim-k)) ease; }
   #stage .node .knob-open { position: absolute; left: 50%; top: 50%;
     transform: translate(-50%, -50%) scale(.4); opacity: 0; pointer-events: none;
-    transition: opacity .22s ease, transform .28s cubic-bezier(.2,.9,.3,1.4); display: grid; place-items: center; }
+    transition: opacity calc(.22s * var(--anim-k)) ease, transform calc(.28s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.4); display: grid; place-items: center; }
   #stage .node .knob-open .icon { width: 22px; height: 22px; color: #fff; stroke-width: 2.6;
     filter: drop-shadow(0 1px 3px rgba(20,28,60,.6)); }
   /* 选中态：knob 放大 + 主题色光环；emoji 淡出、放大的“查看中”图标盖在其上，明确此条已在右侧打开 */
@@ -123,7 +141,7 @@
   #stage .node.active .knob-emo { opacity: 0; transform: scale(.5); }
   #stage .node.active .knob-open { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   /* 悬停已选中节点：勾号轻快弹跳动画（保持居中位移） */
-  #stage .node.active:hover .knob-open { animation: knob-open-bounce .6s cubic-bezier(.3,.9,.4,1.5); }
+  #stage .node.active:hover .knob-open { animation: knob-open-bounce calc(.6s * var(--anim-k)) cubic-bezier(.3,.9,.4,1.5); }
   @keyframes knob-open-bounce {
     0%   { transform: translate(-50%, -50%) scale(1) rotate(0); }
     35%  { transform: translate(-50%, -50%) scale(1.32) rotate(-8deg); }
@@ -138,7 +156,7 @@
     backdrop-filter: blur(16px) saturate(185%); -webkit-backdrop-filter: blur(16px) saturate(185%);
     box-shadow: 0 12px 30px -12px rgba(40,50,90,.55), var(--lg-inset);
     opacity: 0; pointer-events: none; transform: translateY(4px);
-    transition: opacity .16s ease, transform .2s cubic-bezier(.2,.9,.3,1.2); }
+    transition: opacity calc(.16s * var(--anim-k)) ease, transform calc(.2s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.2); }
   .node-tip.on { opacity: 1; transform: translateY(0); }
 
   /* 连接线：静态虚线、低透明、最底层 */

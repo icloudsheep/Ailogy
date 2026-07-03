@@ -2,16 +2,19 @@
 // 与数据无关，viewer / platform / settings / about 各页面复用。
 
 // ── 主题：style(玻璃/拟态/报纸) × mode(光明/黑暗)，各存 localStorage ──
-const STYLE_KEY = "ailogy:style", MODE_KEY = "ailogy:mode";
+const STYLE_KEY = "ailogy:style", MODE_KEY = "ailogy:mode", ANIM_KEY = "ailogy:anim";
 const _ls = (k, d) => { try { return localStorage.getItem(k) || d; } catch (_) { return d; } };
 const curStyle = () => _ls(STYLE_KEY, "glass");
 const curMode = () => _ls(MODE_KEY, "light");
+const curAnim = () => _ls(ANIM_KEY, "default");   // 动画速率档：graceful / default / rapid
 const STYLE_LABEL = { glass: "玻璃", neumorphism: "拟态", newspaper: "报纸" };
 const MODE_LABEL = { light: "光明", dark: "黑暗" };
+const ANIM_LABEL = { graceful: "优雅", default: "默认", rapid: "极速" };
 
 function applyTheme() {
   document.documentElement.setAttribute("data-style", curStyle());
   document.documentElement.setAttribute("data-mode", curMode());
+  document.documentElement.setAttribute("data-anim", curAnim());
 }
 function setStyle(key) {
   if (key === curStyle()) return;  // 无变动：不写入、不重绘、不提示
@@ -24,6 +27,12 @@ function setMode(key) {
   try { localStorage.setItem(MODE_KEY, key); } catch (_) {}
   applyTheme();
   showToast(`已切换为「${MODE_LABEL[key]}」模式`, { title: "主题" });
+}
+function setAnim(key) {
+  if (key === curAnim()) return;   // 无变动：不写入、不重绘、不提示
+  try { localStorage.setItem(ANIM_KEY, key); } catch (_) {}
+  applyTheme();
+  showToast(`已切换为「${ANIM_LABEL[key]}」动画速率`, { title: "动画" });
 }
 
 // ── 通用上下文菜单 ──
