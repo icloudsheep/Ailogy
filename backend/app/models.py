@@ -57,30 +57,67 @@ class Entry(Base):
 
 
 class AIInsight(Base):
-    """AI 智能分析结果的一条「洞察」——AI 侧泳道页的数据源。
+    """一条日志的「分类结果」——entry → topic 映射 + 展示所需的会话元信息。
 
-    demo 阶段：由 entries 派生（topic 暂用 project 充当），后续替换为真正的 AI 产出。
-    与日志解耦：AI 直接读库/接 binlog 生成 insight，不回写 entries。
-    泳道仍以 session 为列、沿用会话主题色与名字；但分类维度改为「设备 + 主题」，不再按月/天。
+    由 worker 的分类流水线产出（按 client_id 幂等 upsert）：AI 只判定该条属于哪个 topic，
+    不再对单条做二次总结（标题/正文沿用日志原文）。凝练总结在「主题级」(AITopic) 做。
+    与日志解耦：worker 直接读 entries 生成，不回写 entries。
+    二级页面用它按会话排布某主题下的日志；沿用会话主题色/emoji/名字。
     """
     __tablename__ = "ai_insights"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client_id: Mapped[str] = mapped_column(String(64), nullable=False)        # = day#seq，溯源+幂等键
     device: Mapped[str] = mapped_column(String(64), default="", index=True)
-    topic: Mapped[str] = mapped_column(String(128), default="", index=True)  # 分类主题（demo=project）
+    topic: Mapped[str] = mapped_column(String(128), default="", index=True)   # AI 判定的主题
     session_code: Mapped[str] = mapped_column(String(64), nullable=False)     # 沿用会话代号（取色/取名）
     emoji: Mapped[str] = mapped_column(String(16), default="")
     name: Mapped[str] = mapped_column(String(64), default="")
-    title: Mapped[str] = mapped_column(Text, default="")
-    summary: Mapped[str] = mapped_column(Text, default="")
+    title: Mapped[str] = mapped_column(Text, default="")                      # 沿用日志标题
+    summary: Mapped[str] = mapped_column(Text, default="")                    # 沿用日志正文
     datetime: Mapped[str] = mapped_column(String(19), nullable=False)         # 供泳道内排序
+    day: Mapped[str] = mapped_column(String(10), default="", index=True)      # 二级页面月/天筛选
     color: Mapped[str] = mapped_column(String(16), nullable=True)            # 冗余会话色（沿用）
-    src_client_id: Mapped[str] = mapped_column(String(64), nullable=True)     # 溯源到的 entry（可空）
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
     __table_args__ = (
+        UniqueConstraint("client_id", name="uq_insight_client"),
         Index("ix_ai_topic", "topic"),
         Index("ix_ai_device", "device"),
     )
+
+
+class AITopic(Base):
+    """一个「主题」及其跨条综述——AI 一级页面（爆炸图 + 综述卡片）的数据源。
+
+    一主题一条：summary 是把该主题下所有日志汇总成的更高视角综述。
+    主题内任一日志增/删/改 → need_resummarize=1 → worker 批末防抖重算一次。
+    """
+    __tablename__ = "ai_topics"
+    topic: Mapped[str] = mapped_column(String(128), primary_key=True)
+    summary: Mapped[str] = mapped_column(Text, default="")                    # 主题综述（跨条汇总）
+    entry_count: Mapped[int] = mapped_column(Integer, default=0)              # 该主题下日志数
+    need_resummarize: Mapped[int] = mapped_column(Integer, default=1, index=True)  # 1=待重算综述
+    color: Mapped[str] = mapped_column(String(16), nullable=True)            # 代表色（取主题内某会话色）
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class AIQueue(Base):
+    """AI 处理队列（触发器写入、worker 消费）——类 binlog 的变更待办。
+
+    每条 entry 一行（client_id 主键），重复变更合并为「重置为待处理」而非堆多行。
+    两条流水线各一个标志位，互不拖累：need_insight(分类) / need_embed(向量化)。
+    失败：attempts 累加，超上限置 paused=1（暂停自动重试，等新变更带起或用户手动重试）。
+    """
+    __tablename__ = "ai_queue"
+    client_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    op: Mapped[str] = mapped_column(String(8), default="upsert")              # upsert / delete
+    need_insight: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    need_embed: Mapped[int] = mapped_column(Integer, default=1, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    paused: Mapped[int] = mapped_column(Integer, default=0, index=True)       # 1=超重试上限，暂停自动重试
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    enqueued_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
 
 class Embedding(Base):

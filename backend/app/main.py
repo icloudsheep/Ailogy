@@ -18,7 +18,12 @@ _FRONTEND = os.path.join(_REPO_ROOT, "frontend")
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
-    yield
+    from . import ai_worker
+    ai_worker.start(_app)     # 启动 AI 后台 worker（消费 ai_queue）
+    try:
+        yield
+    finally:
+        await ai_worker.stop()
 
 
 app = FastAPI(title="Ailogy", version="0.1.0", lifespan=lifespan)

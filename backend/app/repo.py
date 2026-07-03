@@ -179,6 +179,14 @@ def get_entry(db, entry_id):
     return _row_to_dict(r) if r else None
 
 
+def get_entry_by_client_id(db, client_id):
+    """按业务键 client_id(=day#seq) 取一条 entry。供 AI worker 溯源处理。"""
+    r = db.execute(text(
+        f"SELECT {_COLS} FROM entries WHERE client_id = :cid"
+    ), {"cid": client_id}).fetchone()
+    return _row_to_dict(r) if r else None
+
+
 def search_entries(db, q, cursor=None, limit=50):
     from .cursor import decode_cursor, encode_cursor
     limit = max(1, min(limit, 100))
@@ -313,37 +321,129 @@ def all_prefs(db):
 # ── AI 智能洞察（ai_insights 表）──
 # demo 阶段：由 entries 派生（topic 用 project 充当，缺失归为「未归类」），
 # 后续替换为真正的 AI 产出。分类维度为「设备 + 主题」，泳道仍以 session 为列、沿用会话色/名。
-_AI_COLS = ("id, device, topic, session_code, emoji, name, title, summary, "
-            "datetime, color, src_client_id")
+_AI_COLS = ("id, client_id, device, topic, session_code, emoji, name, title, summary, "
+            "datetime, day, color")
 
 
-def rebuild_ai_from_entries(db):
-    """demo 脚手架：清空并从 entries 重建 ai_insights（topic=project，空则「未归类」）。
+def upsert_insight(db, client_id, topic, entry):
+    """写入/更新一条 entry 的分类结果（按 client_id 幂等）。
 
-    每条 entry 派生一条 insight，沿用其会话代号/emoji/名字/颜色。真实 AI 接入后此函数将被替换。
+    topic 由 AI 判定；标题/正文等沿用日志原文。会话色优先用 entry.color，
+    否则用会话调色盘 colorOf 的服务端等价（这里直接取 entries.color，前端 aliases.js 再兜底）。
     """
-    db.execute(text("DELETE FROM ai_insights"))
+    db.execute(text("""
+        INSERT INTO ai_insights
+          (client_id, device, topic, session_code, emoji, name, title, summary,
+           datetime, day, color, created_at, updated_at)
+        VALUES
+          (:cid, :device, :topic, :sess, :emoji, :name, :title, :summary,
+           :dt, :day, :color, datetime('now'), datetime('now'))
+        ON CONFLICT(client_id) DO UPDATE SET
+          device=excluded.device, topic=excluded.topic, session_code=excluded.session_code,
+          emoji=excluded.emoji, name=excluded.name, title=excluded.title, summary=excluded.summary,
+          datetime=excluded.datetime, day=excluded.day, color=excluded.color,
+          updated_at=datetime('now')
+    """), {
+        "cid": client_id, "device": entry.get("device") or "", "topic": topic,
+        "sess": entry.get("session_code"), "emoji": entry.get("emoji") or "",
+        "name": entry.get("name") or "", "title": entry.get("title") or "",
+        "summary": entry.get("summary") or "", "dt": entry.get("datetime"),
+        "day": entry.get("day") or "", "color": entry.get("color"),
+    })
+
+
+def get_insight_topic(db, client_id):
+    """取某 entry 当前归属的 topic（无则 None）。用于删除/改主题时定位受影响主题。"""
+    return db.execute(text(
+        "SELECT topic FROM ai_insights WHERE client_id=:c"), {"c": client_id}).scalar()
+
+
+def delete_insight(db, client_id):
+    db.execute(text("DELETE FROM ai_insights WHERE client_id=:c"), {"c": client_id})
+
+
+def topic_entry_count(db, topic):
+    return db.execute(text(
+        "SELECT COUNT(*) FROM ai_insights WHERE topic=:t"), {"t": topic}).scalar() or 0
+
+
+def topic_texts(db, topic, limit=200):
+    """取某主题下全部日志的（标题, 正文, 时间），供主题级综述汇总。按时间升序。"""
     rows = db.execute(text(
-        "SELECT device, project, session_code, emoji, name, title, summary, datetime, color, client_id "
-        "FROM entries ORDER BY datetime ASC, id ASC"
-    )).fetchall()
-    for r in rows:
-        m = r._mapping
-        topic = (m["project"] or "").strip() or "未归类"
+        "SELECT title, summary, datetime FROM ai_insights WHERE topic=:t "
+        "ORDER BY datetime ASC LIMIT :lim"), {"t": topic, "lim": limit}).fetchall()
+    return [(r[0] or "", r[1] or "", r[2] or "") for r in rows]
+
+
+def topic_color(db, topic):
+    """取该主题下任一会话色作为主题代表色。"""
+    return db.execute(text(
+        "SELECT color FROM ai_insights WHERE topic=:t AND color IS NOT NULL LIMIT 1"),
+        {"t": topic}).scalar()
+
+
+def pending_resummarize_topics(db):
+    """取所有待重算综述的主题名。"""
+    rows = db.execute(text(
+        "SELECT topic FROM ai_topics WHERE need_resummarize=1")).fetchall()
+    return [r[0] for r in rows]
+
+
+def save_topic_summary(db, topic, summary):
+    """写入主题综述并清除重算标志，刷新计数/代表色。"""
+    cnt = topic_entry_count(db, topic)
+    color = topic_color(db, topic)
+    db.execute(text("""
+        INSERT INTO ai_topics (topic, summary, entry_count, need_resummarize, color, updated_at)
+        VALUES (:t, :s, :cnt, 0, :color, datetime('now'))
+        ON CONFLICT(topic) DO UPDATE SET summary=:s, entry_count=:cnt, need_resummarize=0,
+          color=COALESCE(:color, ai_topics.color), updated_at=datetime('now')
+    """), {"t": topic, "s": summary, "cnt": cnt, "color": color})
+
+
+def delete_topic(db, topic):
+    """删除空主题行（该主题已无任何日志时）。"""
+    db.execute(text("DELETE FROM ai_topics WHERE topic=:t"), {"t": topic})
+
+
+def list_topics_full(db):
+    """一级页面用：主题 + 综述 + 计数 + 代表色（按计数降序）。"""
+    rows = db.execute(text(
+        "SELECT topic, summary, entry_count, color, need_resummarize, updated_at "
+        "FROM ai_topics WHERE entry_count > 0 ORDER BY entry_count DESC, topic")).fetchall()
+    return [dict(r._mapping) for r in rows]
+
+
+def enqueue_all_entries(db, only_missing=True):
+    """把 entries 全量（或仅「缺分类/缺向量」的）灌进 ai_queue，供 worker 消费。
+
+    - only_missing=True：只补做缺失部分——没有 insight 的置 need_insight=1，
+      没有 embedding 的置 need_embed=1；两者都齐的不入队。用于历史存量首次回填。
+    - only_missing=False：强制全量重跑（两标志都置 1）。用于「全量重建」。
+    重复入队走 ON CONFLICT 合并。返回入队条数。
+    """
+    if only_missing:
+        rows = db.execute(text(
+            "SELECT e.client_id, "
+            "  CASE WHEN i.client_id IS NULL THEN 1 ELSE 0 END AS need_i, "
+            "  CASE WHEN em.source_id IS NULL THEN 1 ELSE 0 END AS need_e "
+            "FROM entries e "
+            "LEFT JOIN ai_insights i ON i.client_id = e.client_id "
+            "LEFT JOIN embeddings em ON em.source_type='entry' AND em.source_id = e.client_id"
+        )).fetchall()
+        todo = [(r[0], r[1], r[2]) for r in rows if (r[1] or r[2])]
+    else:
+        rows = db.execute(text("SELECT client_id FROM entries")).fetchall()
+        todo = [(r[0], 1, 1) for r in rows]
+    for cid, ni, ne in todo:
         db.execute(text("""
-            INSERT INTO ai_insights
-              (device, topic, session_code, emoji, name, title, summary, datetime, color, src_client_id,
-               created_at, updated_at)
-            VALUES
-              (:device, :topic, :session_code, :emoji, :name, :title, :summary, :datetime, :color, :src,
-               datetime('now'), datetime('now'))
-        """), {
-            "device": m["device"] or "", "topic": topic, "session_code": m["session_code"],
-            "emoji": m["emoji"] or "", "name": m["name"] or "", "title": m["title"] or "",
-            "summary": m["summary"] or "", "datetime": m["datetime"], "color": m["color"],
-            "src": m["client_id"],
-        })
-    return len(rows)
+            INSERT INTO ai_queue (client_id, op, need_insight, need_embed, attempts, paused, last_error, enqueued_at, updated_at)
+            VALUES (:c, 'upsert', :ni, :ne, 0, 0, '', datetime('now'), datetime('now'))
+            ON CONFLICT(client_id) DO UPDATE SET op='upsert',
+              need_insight=MAX(ai_queue.need_insight, :ni), need_embed=MAX(ai_queue.need_embed, :ne),
+              attempts=0, paused=0, last_error='', updated_at=datetime('now')
+        """), {"c": cid, "ni": ni, "ne": ne})
+    return len(todo)
 
 
 def list_ai_insights(db, topics=None, devices=None):
@@ -422,6 +522,19 @@ def embedding_stats(db):
     )).fetchone()
     m = row._mapping
     return {"count": m["cnt"] or 0, "models": m["models"] or 0, "dim": m["dim"] or 0}
+
+
+def get_embedding_meta(db, source_type, source_id):
+    """取某来源已有向量的元信息（模型/维度），无则 None。用于判断是否需重嵌入。"""
+    r = db.execute(text(
+        "SELECT model, dim FROM embeddings WHERE source_type=:st AND source_id=:sid"
+    ), {"st": source_type, "sid": source_id}).fetchone()
+    return {"model": r[0], "dim": r[1]} if r else None
+
+
+def delete_embedding(db, source_type, source_id):
+    db.execute(text("DELETE FROM embeddings WHERE source_type=:st AND source_id=:sid"),
+               {"st": source_type, "sid": source_id})
 
 
 def clear_embeddings(db):

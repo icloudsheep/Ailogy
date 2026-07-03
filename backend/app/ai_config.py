@@ -49,6 +49,11 @@ DEFAULT_CONFIG = {
     "embed_api_key": "",            # 独立向量 API 密钥
     "embed_model": "",              # 如 text-embedding-3-small / bge-m3 等
     "embed_dim": 0,                 # 向量维度（首次 embedding 后回填，用于校验一致性）
+    # 运行参数（worker 读取；设置页「运行」子类可调）
+    "worker_enabled": True,         # 总开关：关则 worker 不处理队列
+    "poll_interval": 20,            # 兜底轮询间隔（秒）——事件唤醒之外的保险
+    "retry_limit": 1,              # 失败自动重试上限，超过则 paused（等手动重试/新变更带起）
+    "recompute_on_update": "embed", # 日志编辑后重算范围：'embed'=只重向量(默认b) / 'all'=分类+向量
     "prompts": dict(DEFAULT_PROMPTS),
 }
 
@@ -126,6 +131,15 @@ def save_config(db, patch: dict) -> dict:
             nxt[k] = str(patch[k]).strip()
     if "embed_use_chat" in patch and patch["embed_use_chat"] is not None:
         nxt["embed_use_chat"] = bool(patch["embed_use_chat"])
+    # 运行参数
+    if "worker_enabled" in patch and patch["worker_enabled"] is not None:
+        nxt["worker_enabled"] = bool(patch["worker_enabled"])
+    if "poll_interval" in patch and isinstance(patch["poll_interval"], int):
+        nxt["poll_interval"] = max(5, min(patch["poll_interval"], 3600))
+    if "retry_limit" in patch and isinstance(patch["retry_limit"], int):
+        nxt["retry_limit"] = max(0, min(patch["retry_limit"], 10))
+    if "recompute_on_update" in patch and patch["recompute_on_update"] in ("embed", "all"):
+        nxt["recompute_on_update"] = patch["recompute_on_update"]
     if "embed_dim" in patch and isinstance(patch["embed_dim"], int):
         nxt["embed_dim"] = patch["embed_dim"]
     if "api_key" in patch:

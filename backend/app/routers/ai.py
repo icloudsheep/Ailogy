@@ -35,12 +35,21 @@ def devices(db: Session = Depends(get_db)):
     return {"devices": repo.list_ai_devices(db)}
 
 
-@router.post("/rebuild")
-def rebuild(db: Session = Depends(get_db)):
-    """demo 脚手架：从 entries 重建 ai_insights（真实 AI 接入后废弃）。"""
-    n = repo.rebuild_ai_from_entries(db)
+@router.post("/backfill")
+def backfill(db: Session = Depends(get_db)):
+    """把历史存量日志灌进队列（只补缺失的分类/向量），交由 worker 处理。"""
+    n = repo.enqueue_all_entries(db, only_missing=True)
     db.commit()
-    return {"ok": True, "count": n}
+    _nudge()
+    return {"ok": True, "enqueued": n}
+
+
+def _nudge():
+    try:
+        from .. import ai_worker
+        ai_worker.nudge()
+    except Exception:
+        pass
 
 
 # ── AI 配置：API 入口 / 密钥 / 模型 / 各场景系统提示词 ──

@@ -41,6 +41,54 @@ def chat_complete(base_url, api_key, model, messages, timeout=30.0, max_tokens=N
                 "ms": int((time.time() - t0) * 1000)}
 
 
+def chat_json(base_url, api_key, model, messages, timeout=30.0):
+    """要求模型返回 JSON 对象并解析。优先用 response_format=json_object，
+    失败或不支持则回退到从纯文本里提取第一个 {...}。返回 {ok, data, error, status, ms}。"""
+    import json as _json
+    import re as _re
+    url = _join(base_url, "chat/completions")
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    t0 = time.time()
+
+    def _try(with_format):
+        payload = {"model": model, "messages": messages, "temperature": 0}
+        if with_format:
+            payload["response_format"] = {"type": "json_object"}
+        return httpx.post(url, headers=headers, json=payload, timeout=timeout)
+
+    try:
+        r = _try(True)
+        if r.status_code >= 400:
+            # 有些兼容网关不认 response_format，去掉再试一次
+            r = _try(False)
+        ms = int((time.time() - t0) * 1000)
+        if r.status_code >= 400:
+            return {"ok": False, "status": r.status_code, "error": _short(r.text), "ms": ms}
+        content = ""
+        try:
+            content = r.json()["choices"][0]["message"]["content"] or ""
+        except Exception:
+            content = ""
+        data = None
+        try:
+            data = _json.loads(content)
+        except Exception:
+            m = _re.search(r"\{.*\}", content, _re.S)
+            if m:
+                try:
+                    data = _json.loads(m.group(0))
+                except Exception:
+                    data = None
+        if data is None:
+            return {"ok": False, "status": r.status_code, "error": f"无法解析 JSON：{_short(content)}", "ms": ms}
+        return {"ok": True, "status": r.status_code, "data": data, "ms": ms}
+    except Exception as e:
+        return {"ok": False, "status": 0, "error": f"{type(e).__name__}: {e}",
+                "ms": int((time.time() - t0) * 1000)}
+
+
 def embed(base_url, api_key, model, texts, timeout=30.0):
     """调用 /embeddings。texts 为字符串列表。返回 {ok, vectors, dim, error, status, ms}。"""
     url = _join(base_url, "embeddings")
