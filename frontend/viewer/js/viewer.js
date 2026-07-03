@@ -58,8 +58,43 @@ function saveSel() {
   try { localStorage.setItem(SEL_KEY, JSON.stringify(all)); } catch (_) {}
   // 同时固化“上次视图”，刷新后回到同一模式/月份
   try { localStorage.setItem(VIEW_KEY, JSON.stringify({ mode: ST.mode, month: ST.month })); } catch (_) {}
+  // 同步写入 URL 查询参数：刷新（含带地址栏跳转）后能原样恢复，且不落库。
+  syncUrl();
 }
-function loadView() { try { return JSON.parse(localStorage.getItem(VIEW_KEY) || "null"); } catch (_) { return null; } }
+function loadSavedView() { try { return JSON.parse(localStorage.getItem(VIEW_KEY) || "null"); } catch (_) { return null; } }
+
+// ── URL 查询参数固化（不落库，刷新可复原）──
+// 形如 ?view=recent 或 ?view=2026-07&dev=A,B。天/会话隐藏集合也随选择变化写入，
+// 供直接复制地址栏分享/刷新恢复；解析在 initViewer 早期完成，优先级高于 localStorage。
+function syncUrl() {
+  try {
+    const p = new URLSearchParams();
+    p.set("view", ST.mode === "recent" ? "recent" : (ST.month || "recent"));
+    if (ST.selectedDevices && ST.selectedDevices.size) p.set("dev", [...ST.selectedDevices].join(","));
+    if (ST.hiddenSessions && ST.hiddenSessions.size) p.set("hide", [...ST.hiddenSessions].join(","));
+    if (ST.selectedDays && ST.days.length && ST.selectedDays.size < ST.days.length) {
+      p.set("days", [...ST.selectedDays].join(","));
+    }
+    const qs = p.toString();
+    history.replaceState(null, "", qs ? "?" + qs : location.pathname);
+  } catch (_) {}
+}
+function readUrl() {
+  try {
+    const p = new URLSearchParams(location.search);
+    if (!p.has("view")) return null;
+    const view = p.get("view");
+    const split = (k) => { const v = p.get(k); return v ? v.split(",").filter(Boolean) : null; };
+    return {
+      mode: view === "recent" ? "recent" : "month",
+      month: view === "recent" ? null : view,
+      devices: split("dev"),
+      hidden: split("hide"),
+      days: split("days"),
+    };
+  } catch (_) { return null; }
+}
+let _urlState = null;   // 首载时从 URL 解析出的状态，供 loadView 恢复选择器
 
 // ── 拉取数据并构建（统一处理 recent / month 两种模式）──
 // opts: { recent: N }（最近 N 天）或 { month: "YYYY-MM" }；不传则沿用当前 ST.mode/ST.month。
@@ -75,8 +110,10 @@ async function loadView(opts, keepSel) {
     ST.entries = r.items;
     _lastSig = _entriesSig(r.items);   // 记录基线指纹，供静默轮询比对
     buildModel();
-    // 恢复固化的选择器状态（仅当该视图有保存且 keepSel）
-    const saved = loadSel()[viewKey()];
+    // 恢复固化的选择器状态：URL 参数优先（刷新/分享复原），其次 localStorage。
+    const urlSel = (_urlState && _urlState.mode === ST.mode
+      && (ST.mode === "recent" || _urlState.month === ST.month)) ? _urlState : null;
+    const saved = urlSel || loadSel()[viewKey()];
     if (keepSel && saved) {
       const validDays = new Set(ST.days.map((d) => d.day));
       ST.selectedDays = new Set((saved.days || []).filter((d) => validDays.has(d)));
@@ -86,6 +123,7 @@ async function loadView(opts, keepSel) {
       ST.selectedDays = new Set(ST.days.map((d) => d.day));
       ST.hiddenSessions = new Set();
     }
+    _urlState = null;   // URL 状态只在首载消费一次，之后以内存状态为准
     if (ST.sessions.length) $("feed").innerHTML = "";
     updateViewLabel();
     saveSel();          // 记住当前视图（mode/month）+ 选择器状态
@@ -157,13 +195,22 @@ async function pollUpdate() {
     detectOutOfViewUpdates(allItems);
   } catch (_) { /* 网络抖动忽略，下次再试 */ }
 }
-// 某条目是否落在当前视图（模式/月份 + 已选设备）内
+// 某条目是否落在当前视图（模式/月份 + 已选设备）内。
+// 仅判范围/设备，不含天/会话的显隐——用于轮询构建模型（隐藏的会话仍要作为胶囊载入）。
 function isInCurrentView(e) {
   // 设备过滤
   if (ST.selectedDevices && !ST.selectedDevices.has(e.device || "")) return false;
   // 范围过滤
   if (ST.mode === "month") return (e.day || "").slice(0, 7) === ST.month;
   return true;  // recent 模式：全量已是最近30天
+}
+// 某条目是否「真正对用户可见」：在范围/设备内，且其天已选、其会话未被隐藏。
+// 供更新提示 banner 判定——用户隐藏了会话/取消了某天时，新条目虽在该月/设备内也应提示。
+function isVisibleToUser(e) {
+  if (!isInCurrentView(e)) return false;
+  if (ST.selectedDays && !ST.selectedDays.has(e.day)) return false;
+  if (ST.hiddenSessions && ST.hiddenSessions.has(e.session_code)) return false;
+  return true;
 }
 function startPolling(ms) {
   if (_pollTimer) clearInterval(_pollTimer);
@@ -190,10 +237,10 @@ function detectOutOfViewUpdates(allItems) {
     _knownIds = new Set(allItems.map((e) => String(e.id)));
     return;
   }
-  // 新出现（id 未见过）且不在当前视图、未被忽略的条目
+  // 新出现（id 未见过）且当前对用户不可见（范围/设备外，或所在天未选、会话被隐藏）、未被忽略的条目
   const fresh = allItems.filter((e) => {
     const id = String(e.id);
-    return !_knownIds.has(id) && !isInCurrentView(e) && !_dismissedIds.has(id);
+    return !_knownIds.has(id) && !isVisibleToUser(e) && !_dismissedIds.has(id);
   });
   // 更新已知集合（把所有当前 id 记入，避免下轮重复提示）
   allItems.forEach((e) => _knownIds.add(String(e.id)));
@@ -212,10 +259,13 @@ function showUpdateNotice(freshList, rep) {
   const title = rep.title || sessDisplay(rep.session_code, rep.name) || "新日志";
   $("update-notice-text").textContent = `${dev} · ${title}${extra}`;
   bar.classList.add("show");
+  // 提示条占位高度写入 --notice-h：toast 容器 top 据此下移避让（带过渡）
+  document.documentElement.style.setProperty("--notice-h", "56px");
 }
 function hideUpdateNotice() {
   const bar = $("update-notice");
   if (bar) bar.classList.remove("show");
+  document.documentElement.style.setProperty("--notice-h", "0px");
   _pendingNotice = null;
 }
 function viewUpdateNotice() {
@@ -311,7 +361,9 @@ function render() {
 }
 
 function _capsHash() {
-  return ST.sessions.map((s) => `${s.code}:${s.color}:${sessAppearsInVisibleDays(s.code)?1:0}:${ST.hiddenSessions.has(s.code)?1:0}`).join("|")
+  // 含别名：重命名后 hash 变化才会触发 renderCapsules 热更新（无需刷新页面）。
+  // 折叠态/自动隐藏灰态不入 hash——它们只切换 .cap-hidden 类走 CSS 动画，不重建 DOM（重建会打断动画）。
+  return ST.sessions.map((s) => `${s.code}:${aliasOf(s.code)||""}:${s.color}:${sessAppearsInVisibleDays(s.code)?1:0}:${ST.hiddenSessions.has(s.code)?1:0}`).join("|")
     + "|" + ST.days.map((d) => `${d.day}:${isDaySelected(d.day)?1:0}`).join("|");
 }
 
@@ -321,23 +373,132 @@ function renderEmpty() {
   $("feed").innerHTML = '<div class="empty-center"><div class="empty-main">无任何内容</div></div>';
 }
 
+// 会话选择器折叠：会话多时占大片空间，折叠后只留「显示中」的会话胶囊。
+// 纯 UI 视图态、不落库（不影响任何会话的显隐/选择），刷新回到展开态。
+// 动画用 FLIP（First-Last-Invert-Play）：布局塌缩瞬时完成，位移改由 transform 补间——
+// CSS 过渡无法动画 flex 换行（3 行↔2 行），只有 FLIP 能让胶囊跨行平滑滑动、消除闪烁。
+let _sessCollapsed = false;
+// 「自动隐藏灰态会话」偏好（设置页开关，localStorage 固化）：灰态=当前无可显示天的会话。
+const HIDE_GREY_KEY = "ailogy:hideGrey";
+function autoHideGrey() { try { return localStorage.getItem(HIDE_GREY_KEY) === "1"; } catch (_) { return false; } }
+// 某会话胶囊是否应被折叠隐藏：折叠态下藏所有「非显示中」；或开了自动隐藏灰态时藏灰态。
+function sessCapFolded(code) {
+  const grey = !sessAppearsInVisibleDays(code);
+  if (autoHideGrey() && grey) return true;
+  if (_sessCollapsed && !isSessVisible(code)) return true;
+  return false;
+}
+function toggleSessCollapse() { _sessCollapsed = !_sessCollapsed; refreshCapFold(); }
+
+// ── FLIP 动画助手（按 data-code / __btn__ 键匹配新旧元素）──
+const CAP_EASE = "cubic-bezier(.22,1,.36,1)";   // 自适应非线性补间：快出慢入，末端平滑收敛
+const CAP_FLIP_BASE = 0.42;                     // FLIP 位移基准时长（秒，极速档）；实际 ×--anim-k
+// 读取全站动画速率系数（设置页三档：优雅/默认/极速），使 JS 动画与 CSS 同步伸缩
+function animK() {
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--anim-k"));
+  return Number.isFinite(v) && v > 0 ? v : 1;
+}
+// 参与 FLIP 的左侧「天/会话」标签：会话行换行使其高度变化时，标签会整体上下移动，
+// 纳入 FLIP 才能让它们随之平滑滑动（此前是瞬跳，见 issue #6「其他问题」）。
+function capTagEls() {
+  return [...document.querySelectorAll("#header-row2 .cap-tag")];
+}
+// First：记录当前各胶囊/按钮/标签的视口坐标（在 DOM 变更之前调用）
+function captureCapRects() {
+  const row = $("cap-sessions"), btn = $("sess-collapse");
+  const m = new Map();
+  if (row) row.querySelectorAll(".sess-cap").forEach((el) => m.set(el.dataset.code, el.getBoundingClientRect()));
+  if (btn && !btn.classList.contains("cap-toggle-off")) m.set("__btn__", btn.getBoundingClientRect());
+  capTagEls().forEach((el, i) => m.set("__tag" + i + "__", el.getBoundingClientRect()));
+  return m;
+}
+// Last+Invert+Play：变更后按旧坐标反相，再用 transform 过渡回位（不触发重排、跨行也平滑）
+function flipFromRects(firstMap) {
+  const row = $("cap-sessions"), btn = $("sess-collapse");
+  if (!row || !firstMap) return;
+  const pairs = [];
+  row.querySelectorAll(".sess-cap").forEach((el) => {
+    const f = firstMap.get(el.dataset.code); if (f) pairs.push([el, f]);
+  });
+  if (btn && firstMap.get("__btn__")) pairs.push([btn, firstMap.get("__btn__")]);
+  capTagEls().forEach((el, i) => { const f = firstMap.get("__tag" + i + "__"); if (f) pairs.push([el, f]); });
+  const active = [];
+  pairs.forEach(([el, f]) => {
+    // 正在收起的胶囊/按钮：不做位移补间，仅靠 opacity 原地淡出（避免飞向塌缩点）
+    if (el.classList.contains("cap-hidden") || el.classList.contains("cap-toggle-off")) return;
+    const l = el.getBoundingClientRect();
+    const dx = f.left - l.left, dy = f.top - l.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    el.style.transition = "none";
+    el.style.transform = `translate(${dx}px, ${dy}px)`;
+    active.push(el);
+  });
+  if (!active.length) return;
+  const dur = CAP_FLIP_BASE * animK();   // 随速率档伸缩
+  void document.body.offsetWidth;   // 强制重排，使反相位生效
+  requestAnimationFrame(() => {
+    active.forEach((el) => {
+      el.style.transition = `transform ${dur}s ${CAP_EASE}`;
+      el.style.transform = "";
+    });
+    setTimeout(() => active.forEach((el) => { el.style.transition = ""; el.style.transform = ""; }), dur * 1000 + 60);
+  });
+}
+// 折叠按钮显隐 + 文案：仅当存在「显示中却被手动隐藏（off 态）」的非灰态会话时才出现。
+// 灰态会话不计入——它们由设置页「自动隐藏灰态」管理。全非灰态均显示时按钮渐隐消失。
+function refreshCapButton() {
+  const btn = $("sess-collapse");
+  if (!btn) return;
+  const off = ST.sessions.filter((s) => sessAppearsInVisibleDays(s.code) && ST.hiddenSessions.has(s.code)).length;
+  if (!off) { _sessCollapsed = false; btn.classList.add("cap-toggle-off"); return; }
+  btn.innerHTML = _sessCollapsed
+    ? `${icon("eye")}<span>展开全部（${ST.sessions.length}）</span>`
+    : `${icon("eyeOff")}<span>只看显示中</span>`;
+  btn.title = _sessCollapsed ? "展开全部会话胶囊" : `折叠隐藏 ${off} 个已隐藏的会话`;
+  btn.onclick = toggleSessCollapse;
+  btn.classList.remove("cap-toggle-off");
+}
+// 给每个会话胶囊切 .cap-hidden（布局塌缩），button 状态同步刷新
+function applyCapFoldClasses() {
+  const row = $("cap-sessions");
+  if (row) row.querySelectorAll(".sess-cap").forEach((el) =>
+    el.classList.toggle("cap-hidden", sessCapFolded(el.dataset.code)));
+}
+// 折叠态/自动隐藏态变化时：先记坐标，改类，再 FLIP 播位移动画（不重建 DOM）
+function refreshCapFold() {
+  const first = captureCapRects();
+  refreshCapButton();
+  applyCapFoldClasses();
+  flipFromRects(first);
+}
+
 function renderCapsules() {
   const sessRow = $("cap-sessions");
-  sessRow.innerHTML = ST.sessions.map((s) => {
+  const btn = $("sess-collapse");        // 折叠按钮在 #cap-sessions 内、位于胶囊之后——重建胶囊时勿删它
+  const first = captureCapRects();   // 重建前记录旧坐标，供 FLIP 平滑过渡（改名/显隐等）
+  // 只清除旧胶囊、保留折叠按钮；折叠/自动隐藏只通过 .cap-hidden 类切换，让 FLIP 播动画。
+  sessRow.querySelectorAll(".sess-cap").forEach((el) => el.remove());
+  const capsHTML = ST.sessions.map((s) => {
     const appears = sessAppearsInVisibleDays(s.code);
     const grey = !appears;
     const on = appears && !ST.hiddenSessions.has(s.code);
     const cls = grey ? "grey" : (on ? "on" : "off");
-    return `<div class="cap sess-cap ${cls}" data-code="${esc(s.code)}" style="--c:${s.color}">
+    const fold = sessCapFolded(s.code) ? " cap-hidden" : "";
+    return `<div class="cap sess-cap ${cls}${fold}" data-code="${esc(s.code)}" style="--c:${s.color}">
       <span class="cap-dot"></span><span class="emo">${s.emoji}</span>
-      <span class="cap-name">${esc(sessDisplay(s.code, s.name))}</span></div>`;
+      <span class="cap-name">${sessDisplayHtml(s.code, s.name)}</span></div>`;
   }).join("");
+  // 胶囊插到按钮之前（按钮始终排在末尾），无按钮时直接填充
+  if (btn) btn.insertAdjacentHTML("beforebegin", capsHTML);
+  else sessRow.innerHTML = capsHTML;
   sessRow.querySelectorAll(".sess-cap").forEach((el) => {
     el.oncontextmenu = (ev) => { ev.preventDefault(); ev.stopPropagation(); sessionMenu(ev, el.dataset.code, el.classList.contains("grey")); };
     if (!el.classList.contains("grey")) {
       el.onclick = () => toggleSession(el.dataset.code);
     }
   });
+  refreshCapButton();
+  flipFromRects(first);   // 重建后按旧坐标 FLIP，改名/显隐/折叠都平滑过渡
 
   const dayRow = $("cap-days");
   dayRow.innerHTML = ST.days.map((d) => {
@@ -361,6 +522,11 @@ function sessionMenuItems(code, grey) {
       const next = v.trim();
       if (next === (aliasOf(code) || "")) return;    // 无变动：不保存、不重渲、不提示
       saveAlias(code, next); render();
+      // 若右侧详情正展示该会话的条目，同步刷新其展示名（含旧名括号）
+      if (ST.active && ST.active.dataset && ST.active.dataset.id) {
+        const cur = ST.entries.find((e) => String(e.id) === ST.active.dataset.id);
+        if (cur && cur.session_code === code) selectNodeDetail(cur, ST.active);
+      }
       showToast(next ? `已重命名为「${next}」` : "已恢复原名", { title: "会话" });
     } },
     { label: icon("palette") + " 改主题色", act: () => pickColor(code) },
@@ -596,14 +762,84 @@ const ns = "http://www.w3.org/2000/svg";
 const NODE_HALF = 17, RIGHT_PAD = 8;
 const SOLO_GAP = 24;                 // 单泳道时给紧凑徽标上下额外留白（原 30 的 80%）
 const SOLO_BAND_W = 46, SOLO_BAND_H = 46, MULTI_BAND_H = 32;
-const LEAVE_MS = 380;
+const LEAVE_BASE_MS = 340;   // 离场动画基准时长(≈.34s)；实际按速率档 ×animK
 
-// 平滑移除：先加 .leaving 播离场动画，再删节点
-function leaveAndRemove(el) {
-  if (!el || el.dataset.leaving) return;
+// 取消某元素待执行的离场（在它被复用/重新出现时调用）：清定时器 + 抹掉离场内联样式，
+// 让它恢复由 CSS / 后续 render 决定的常态 transform/opacity。
+function cancelLeave(el) {
+  if (!el) return;
+  if (el._leaveTimer) { clearTimeout(el._leaveTimer); el._leaveTimer = 0; }
+  el.dataset.leaving = "";
+  el.classList.remove("leaving");
+  el.style.transition = "";
+  el.style.opacity = "";
+  el.style.transform = "";
+  el.style.pointerEvents = "";
+  el.style.animation = "";   // 恢复被 leaveEl 关掉的入场动画能力（复用时可再次播 pop 等）
+}
+
+// 协调离场：让「整条泳道 / 整天」作为一个整体一起收拢消失，而非各元素各播各的。
+//   base : 元素定位用的基础 transform（须保留，否则会跳位）
+//   axis : 'x' 横向收拢（整条泳道整列一起向竖轴合拢）
+//          'y' 纵向收拢（整天整行一起向横轴合拢）
+//          'fade' 仅淡出（细延伸线，SVG 不便缩放）
+//          null 原地缩为 0（单条增删的兜底）
+// 同一批离场元素用相同时长与缓动，同帧启动 → 视觉上作为一个整体消失。
+function leaveEl(el, base, axis) {
+  if (!el || el.dataset.leaving === "1") return;
   el.dataset.leaving = "1";
-  el.classList.add("leaving");
-  setTimeout(() => el.remove(), LEAVE_MS);
+  el.style.pointerEvents = "none";
+  // 关键：清掉尚未结束的入场 pop 动画（.enter/animation）。CSS animation 会覆盖内联 transform，
+  // 快速点击时节点常仍在 pop 中，若不清除，离场的 scaleX/Y(0) 会被 pop 压住 → 不播缩小、直接被摘除。
+  el.classList.remove("enter");
+  el.style.animation = "none";
+  const dur = Math.round(LEAVE_BASE_MS * animK());
+  el.style.transition = `transform ${dur}ms cubic-bezier(.4,0,.6,1), opacity ${dur}ms ease`;
+  void el.offsetWidth;   // 触发过渡起点（用当前 transform 作为起始帧）
+  const b = base || "";
+  if (axis === "x") el.style.transform = `${b} scaleX(0)`;
+  else if (axis === "y") el.style.transform = `${b} scaleY(0)`;
+  else if (axis == null) el.style.transform = `${b} scale(0)`;
+  // axis === 'fade'：不动 transform，仅靠 opacity 淡出
+  el.style.opacity = "0";
+  el._leaveTimer = setTimeout(() => el.remove(), dur + 60);
+}
+
+// ── 「天分组」离场：整组（日期标识 + 该天所有节点 + 节点间加粗连线）作为一个整体，
+//    以左上角为原点缩放 + 透明度淡出/淡入。用真实包裹容器 .day-group 实现，天生同步。──
+// 分组是覆盖整个 stage 的透明层（inset:0），只装某一天的元素；子元素仍用 stage 像素坐标，
+// 故缩放原点设成「该天左上角的像素点」(0, dayTop)，scale 就从该天左上角展开/收拢。
+function groupEnter(group) {
+  group.style.transformOrigin = `0px ${group._dayTop || 0}px`;
+  group.style.transform = "scale(0)";
+  group.style.opacity = "0";
+  requestAnimationFrame(() => {
+    const dur = Math.round(LEAVE_BASE_MS * animK());
+    // 出现用不过冲的 ease-out（末端不超过 1），避免回弹
+    group.style.transition = `transform ${dur}ms cubic-bezier(.2,.8,.2,1), opacity ${dur}ms ease`;
+    group.style.transform = "scale(1)";
+    group.style.opacity = "1";
+  });
+}
+function leaveGroup(group) {
+  if (!group || group.dataset.leaving === "1") return;
+  group.dataset.leaving = "1";
+  group.style.pointerEvents = "none";
+  const dur = Math.round(LEAVE_BASE_MS * animK());
+  group.style.transition = `transform ${dur}ms cubic-bezier(.4,0,.6,1), opacity ${dur}ms ease`;
+  group.style.transformOrigin = `0px ${group._dayTop || 0}px`;
+  void group.offsetWidth;
+  group.style.transform = "scale(0)";
+  group.style.opacity = "0";
+  group._leaveTimer = setTimeout(() => group.remove(), dur + 60);
+}
+function cancelGroupLeave(group) {
+  if (!group) return;
+  if (group._leaveTimer) { clearTimeout(group._leaveTimer); group._leaveTimer = 0; }
+  group.dataset.leaving = "";
+  group.style.pointerEvents = "";
+  group.style.transform = "scale(1)";
+  group.style.opacity = "1";
 }
 
 function renderStage() {
@@ -620,6 +856,11 @@ function renderStage() {
 
   const n = Math.max(visSessions.length, 1);
   const W = COL_X0 + (n - 1) * COL_W + NODE_HALF + RIGHT_PAD;
+
+  // 本次「可见」的泳道 / 天集合——用于判定被移除元素是「整条泳道走」还是「整天走」，
+  // 从而让同批元素以一致方向（泳道→横向收拢 scaleX0，天→纵向收拢 scaleY0）作为整体消失。
+  const visLaneCodes = new Set(visSessions.map((s) => s.code));
+  const visDaySet = new Set(vis.map((e) => e.day));
 
   // 布局：用像素游标直接算各节点/时间标识的 y；单泳道时在标识上下加留白。
   // 连续 full 节点（同泳道、vis 顺序相邻）之间用更小的行距，让它们在火箭机身内更贴近。
@@ -650,6 +891,31 @@ function renderStage() {
   const H = y + ROW_H + 30;
   stage.style.width = W + "px"; stage.style.height = H + "px";
 
+  // ── 天分组容器：每天一个覆盖整个 stage 的透明层（.day-group），装该天的
+  //    日期标识 + 全部节点 + 节点间加粗连线。整组以「该天左上角」为原点做缩放+透明度动画，
+  //    出现/消失时作为一个整体。泳道竖线与火箭轨道不入组、仍是 stage 直接子元素（保持现状）。
+  const dayTopOf = {};
+  dayMarks.forEach((m) => { dayTopOf[m.day] = m.top - 6; });
+  const groupOf = {};   // day -> .day-group 元素
+  const seenGroup = new Set();
+  const ensureGroup = (day) => {
+    if (groupOf[day]) return groupOf[day];
+    let g = stage.querySelector(`:scope > .day-group[data-day="${attrEsc(day)}"]`);
+    const fresh = !g;
+    if (fresh) {
+      g = document.createElement("div");
+      g.className = "day-group";
+      g.dataset.day = day;
+      stage.appendChild(g);
+    }
+    g._dayTop = dayTopOf[day] != null ? dayTopOf[day] : 0;
+    if (fresh) groupEnter(g);
+    else cancelGroupLeave(g);
+    groupOf[day] = g; seenGroup.add(day);
+    return g;
+  };
+  dayMarks.forEach((m) => ensureGroup(m.day));
+
   // ── 1) 泳道竖线（svg.rails）──
   //  a) 细长延伸线：每条可见泳道一条，贯穿整列（淡）。
   //  b) 加粗实色段：以「天」为单位，每条泳道在该天内 首个节点→末个节点 之间画一段粗线（浓）。
@@ -668,8 +934,7 @@ function renderStage() {
       ln.style.opacity = "0";
       svg.appendChild(ln);
     }
-    ln.dataset.leaving = "";
-    ln.classList.remove("leaving");
+    if (!fresh) cancelLeave(ln);   // 若正在离场又被复用：清定时器与离场内联样式
     ln.setAttribute("y2", H);
     ln.setAttribute("stroke", s.color);
     ln.style.transform = `translateX(${x}px)`;
@@ -677,13 +942,20 @@ function renderStage() {
     seenRail.add(s.code);
   });
   svg.querySelectorAll("line.rail-ext[data-code]").forEach((ln) => {
-    if (!seenRail.has(ln.dataset.code)) { ln.style.opacity = "0"; leaveAndRemove(ln); }
+    if (!seenRail.has(ln.dataset.code)) {
+      // 细延伸线：SVG line 不便缩放，随泳道整体淡出（transform 保留其平移，避免跳位）
+      leaveEl(ln, ln.style.transform, "fade");
+    }
   });
 
-  // 加粗实色段：按 (泳道, 天) 聚合首末节点 y
-  const segMap = {};   // key: code\x00day -> {code, day, minY, maxY}
+  // 加粗实色段：按 (泳道, 天) 聚合首末节点 y。
+  // 用 HTML div（top/height/left 都是可动画的 CSS 属性）而非 SVG line——
+  // SVG <line> 的 y1/y2 是 presentation 属性、CSS transition 无效，节点滑动时连线不会跟随、
+  // 只能生硬淡入淡出；改用 div 后连线与节点同一套 transition，始终严丝合缝相连。
+  // key 用 "::" 连接（不用 \x00：null 字符写进 DOM 属性会被浏览器丢弃/改写，导致复用/清理都匹配不到）。
+  const segMap = {};   // key: code::day -> {code, day, minY, maxY}
   vis.forEach((e, i) => {
-    const k = e.session_code + "\x00" + e.day;
+    const k = e.session_code + "::" + e.day;
     const yy = nodeY[i];
     const g = segMap[k] || (segMap[k] = { code: e.session_code, day: e.day, minY: yy, maxY: yy });
     if (yy < g.minY) g.minY = yy;
@@ -694,48 +966,52 @@ function renderStage() {
     if (g.maxY <= g.minY) return;   // 该天该泳道只有单个节点，无需连线段
     const s = ST.sessions.find((x) => x.code === g.code);
     const x = COL_X0 + laneOf[g.code] * COL_W;
-    let seg = svg.querySelector(`line.rail-seg[data-seg="${attrEsc(k)}"]`);
+    const grp = groupOf[g.day];     // 加粗连线归入其所在天的分组
+    let seg = stage.querySelector(`.rail-seg[data-seg="${attrEsc(k)}"]`);
     const fresh = !seg;
     if (fresh) {
-      seg = document.createElementNS(ns, "line");
-      seg.setAttribute("data-seg", k);
-      seg.setAttribute("class", "rail-seg");
-      seg.setAttribute("x1", 0); seg.setAttribute("x2", 0);
+      seg = document.createElement("div");
+      seg.className = "rail-seg";
+      seg.dataset.seg = k;
       seg.style.opacity = "0";
-      svg.appendChild(seg);
     }
-    seg.dataset.leaving = "";
-    seg.classList.remove("leaving");
-    seg.setAttribute("y1", g.minY); seg.setAttribute("y2", g.maxY);
-    seg.setAttribute("stroke", s ? s.color : "#8ea0c8");
-    seg.style.transform = `translateX(${x}px)`;
+    if (!fresh) cancelLeave(seg);
+    if (grp && seg.parentNode !== grp) grp.appendChild(seg);   // 确保挂在正确的天分组内
+    // top=首节点中心 y，height=首→末节点中心距，left+translateX(-50%) 居中于泳道列
+    seg.style.top = g.minY + "px";
+    seg.style.height = (g.maxY - g.minY) + "px";
+    seg.style.left = x + "px";
+    seg.style.background = s ? s.color : "#8ea0c8";
     if (fresh) requestAnimationFrame(() => seg.style.opacity = "");
     seenSeg.add(k);
   });
-  svg.querySelectorAll("line.rail-seg[data-seg]").forEach((seg) => {
-    if (!seenSeg.has(seg.dataset.seg)) { seg.style.opacity = "0"; leaveAndRemove(seg); }
+  // 清理：整天走的连线随分组一起消失（不单独动画）；仅「泳道走 / 单段自消」时单独离场
+  stage.querySelectorAll(".rail-seg[data-seg]").forEach((seg) => {
+    if (!seenSeg.has(seg.dataset.seg)) {
+      const [code, day] = (seg.dataset.seg || "").split("::");
+      if (!visDaySet.has(day)) { /* 整天走：交给 leaveGroup 整体处理，这里不重复动画 */ return; }
+      // 整条泳道走→横向收拢；单段自消→原地缩小
+      const axis = !visLaneCodes.has(code) ? "x" : null;
+      leaveEl(seg, "translateX(-50%)", axis);
+    }
   });
 
-  // ── 2) 日期标识：按 day 复用，solo/multi 切换时改 class + 内容，尺寸/位置走 transition ──
-  const seenBand = new Set();
+  // ── 2) 日期标识：归入所在天的分组；solo/multi 切换时改 class + 内容，尺寸/位置走 transition ──
   dayMarks.forEach((m) => {
     const dd = ST.days.find((x) => x.day === m.day);
-    let band = stage.querySelector(`:scope > .day-band[data-day="${attrEsc(m.day)}"]`);
+    const grp = groupOf[m.day];
+    let band = stage.querySelector(`.day-band[data-day="${attrEsc(m.day)}"]`);
     const fresh = !band;
     if (fresh) {
       band = document.createElement("div");
       band.dataset.day = m.day;
-      band.classList.add("enter");
-      stage.appendChild(band);
-      requestAnimationFrame(() => band.classList.remove("enter"));
     }
-    band.dataset.leaving = "";
-    band.classList.remove("leaving");
+    if (grp && band.parentNode !== grp) grp.appendChild(band);
     if (dd) band.style.setProperty("--day-c", dd.color);
     const wantSolo = solo ? "solo" : "multi";
     if (band.dataset.shape !== wantSolo) {
       band.dataset.shape = wantSolo;
-      band.className = "day-band" + (solo ? " solo" : "") + (fresh ? " enter" : "");
+      band.className = "day-band" + (solo ? " solo" : "");
       band.innerHTML = solo
         ? `<span class="day-band-pill"></span><span class="day-band-num">${esc(m.day.slice(8))}</span>`
         : `<span class="day-band-label">${esc(m.day.slice(5))}</span>`;
@@ -747,18 +1023,16 @@ function renderStage() {
     if (solo) { band.style.left = "6px"; band.style.width = SOLO_BAND_W + "px"; }
     else { band.style.left = "6px"; band.style.width = (W - 12) + "px"; }
     band.style.height = (solo ? SOLO_BAND_H : MULTI_BAND_H) + "px";
-    seenBand.add(m.day);
   });
-  stage.querySelectorAll(":scope > .day-band[data-day]").forEach((band) => {
-    if (!seenBand.has(band.dataset.day)) leaveAndRemove(band);
-  });
+  // 日期标识随其所在天分组一起出现/消失，无需在此单独处理离场（整天走时 leaveGroup 会移除整组）
 
-  // ── 3) 节点：按 entry id 复用，left/top 变化走 transition；新增播 pop，移除播离场 ──
+  // ── 3) 节点：归入所在天的分组，按 entry id 复用；left/top 变化走 transition；新增播 pop ──
   const seenNode = new Set();
   vis.forEach((e, i) => {
     const s = ST.sessions.find((x) => x.code === e.session_code);
     const x = COL_X0 + laneOf[e.session_code] * COL_W, ny = nodeY[i];
-    let node = stage.querySelector(`:scope > .node[data-id="${attrEsc(String(e.id))}"]`);
+    const grp = groupOf[e.day];
+    let node = stage.querySelector(`.node[data-id="${attrEsc(String(e.id))}"]`);
     const fresh = !node;
     if (fresh) {
       node = document.createElement("div");
@@ -774,21 +1048,25 @@ function renderStage() {
       node.addEventListener("mouseleave", cancelTip);
       // pop 是关键帧动画，需播放完再摘 .enter（rAF 立即摘会中断动画）
       node.addEventListener("animationend", () => node.classList.remove("enter"), { once: true });
-      stage.appendChild(node);
     } else {
-      node.dataset.leaving = "";
-      node.classList.remove("leaving");
+      cancelLeave(node);
     }
+    if (grp && node.parentNode !== grp) grp.appendChild(node);   // 挂到（或迁到）正确的天分组
+    node.dataset.code = e.session_code;   // 供离场时判定「整条泳道走 or 整天走」
+    node.dataset.day = e.day;
     node.style.setProperty("--c", s.color);
     node.style.left = x + "px";
     node.style.top = ny + "px";
     node.dataset.tip = e.title || sessDisplay(e.session_code, s.name);
     seenNode.add(String(e.id));
   });
-  stage.querySelectorAll(":scope > .node[data-id]").forEach((node) => {
+  stage.querySelectorAll(".node[data-id]").forEach((node) => {
     if (!seenNode.has(node.dataset.id)) {
       if (node === ST.active) { ST.active = null; closeDetail(); }
-      leaveAndRemove(node);
+      // 整天走：随分组整体消失，节点不单独动画。否则：泳道走→横向收拢；单条自消→原地缩小。
+      if (!visDaySet.has(node.dataset.day)) return;
+      const axis = !visLaneCodes.has(node.dataset.code) ? "x" : null;
+      leaveEl(node, "translate(-50%,-50%)", axis);
     }
   });
 
@@ -814,11 +1092,12 @@ function renderStage() {
     flush();
   });
   // full 段内的节点略微缩小并贴近（.in-rocket）——先清旧标记再按当前 runs 打标
-  stage.querySelectorAll(":scope > .node.in-rocket").forEach((n) => n.classList.remove("in-rocket"));
+  // 节点现居于各天分组内，查询不再用 :scope > 直接子选择器。
+  stage.querySelectorAll(".node.in-rocket").forEach((n) => n.classList.remove("in-rocket"));
   const rocketIds = new Set();
   runs.forEach((r) => r.ids.forEach((id) => rocketIds.add(String(id))));
   rocketIds.forEach((id) => {
-    const n = stage.querySelector(`:scope > .node[data-id="${attrEsc(id)}"]`);
+    const n = stage.querySelector(`.node[data-id="${attrEsc(id)}"]`);
     if (n) n.classList.add("in-rocket");
   });
   const seenRun = new Set();
@@ -839,8 +1118,9 @@ function renderStage() {
       stage.appendChild(el);
       requestAnimationFrame(() => el.classList.remove("enter"));
     }
-    el.dataset.leaving = "";
-    el.classList.remove("leaving");
+    if (!fresh) cancelLeave(el);
+    const ent0 = vis.find((v) => v.id === r.id);
+    if (ent0) { el.dataset.code = ent0.session_code; el.dataset.day = ent0.day; }
     const top = r.firstY - RK_HEAD, bottom = r.lastY + RK_TAIL;
     el.style.left = r.x + "px";
     el.style.top = top + "px";
@@ -853,7 +1133,17 @@ function renderStage() {
     seenRun.add(String(r.id));
   });
   stage.querySelectorAll(":scope > .rocket-track[data-run]").forEach((el) => {
-    if (!seenRun.has(el.dataset.run)) leaveAndRemove(el);
+    if (!seenRun.has(el.dataset.run)) {
+      // 火箭轨道不入分组、保持现状：泳道走→横向收拢；天走→纵向收拢；单条自消→缩小
+      const axis = !visLaneCodes.has(el.dataset.code) ? "x"
+        : !visDaySet.has(el.dataset.day) ? "y" : null;
+      leaveEl(el, "translateX(-50%)", axis);
+    }
+  });
+
+  // ── 天分组清理：本次不再出现的天，整组（日期标识+节点+加粗连线）一起缩小淡出 ──
+  stage.querySelectorAll(":scope > .day-group[data-day]").forEach((g) => {
+    if (!seenGroup.has(g.dataset.day)) leaveGroup(g);
   });
 
   clearDetailIfGone();
@@ -903,7 +1193,7 @@ function selectNodeDetail(ef, node) {
   wrap.innerHTML =
     `<div class="box fresh"><div class="d-title">${ef.title ? esc(ef.title) : esc(sessDisplay(ef.session_code, s.name))}</div>
       <div class="d-head"><span class="d-emo">${ef.emoji || "📝"}</span>
-        <span class="d-who">${esc(sessDisplay(ef.session_code, s.name))}</span>
+        <span class="d-who">${sessDisplayHtml(ef.session_code, s.name)}</span>
         <span class="d-seq">#${ef.seq}</span></div></div>`
     + `<div class="box fresh"><div class="bt">${icon("note")} 日志内容</div><div class="d-sum md">${renderMd(ef.summary || "")}</div></div>`
     + `<div class="box fresh"><div class="bt">${icon("clock")} 时间</div><div class="metrics">${f("起", fmtAt(ef.start, ef.day))}${f("止", fmtAt(ef.end, ef.day))}${f("时长", fmtDur(ef.duration))}</div></div>`
@@ -1086,6 +1376,10 @@ async function initViewer() {
   const nv = $("update-notice-view"), nd = $("update-notice-dismiss");
   if (nv) nv.onclick = viewUpdateNotice;
   if (nd) nd.onclick = dismissUpdateNotice;
+  // 设置页切换「自动隐藏灰态会话」→ 跨标签页 storage 事件，就地切类走动画（不重建、不刷新）
+  window.addEventListener("storage", (ev) => {
+    if (ev.key === HIDE_GREY_KEY) refreshCapFold();
+  });
   const left = $("left");
   if (left) left.addEventListener("scroll", () => { cancelTip(); }, { passive: true });
   const right = $("detail");
@@ -1097,12 +1391,13 @@ async function initViewer() {
     const dr = await API.devices();
     ST.devices = dr.devices || [];
   } catch (_) {}
-  // 恢复上次视图（默认最近30天）
-  const v = loadView();
+  // 恢复视图：URL 查询参数优先（刷新/分享复原，不落库），其次 localStorage 上次视图，默认最近30天
+  _urlState = readUrl();
+  const v = _urlState || loadSavedView();
   if (v && v.mode === "month" && v.month) { ST.mode = "month"; ST.month = v.month; }
   else { ST.mode = "recent"; ST.recentDays = 30; }
-  // 恢复该视图的设备筛选
-  const savedSel = loadSel()[viewKey()];
+  // 恢复该视图的设备筛选：URL 优先，其次 localStorage
+  const savedSel = (_urlState && Array.isArray(_urlState.devices)) ? _urlState : loadSel()[viewKey()];
   if (savedSel && Array.isArray(savedSel.devices)) {
     ST.selectedDevices = new Set(savedSel.devices.filter((d) => ST.devices.includes(d)));
     if (!ST.selectedDevices.size || ST.selectedDevices.size === ST.devices.length) ST.selectedDevices = null;

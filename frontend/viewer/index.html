@@ -8,6 +8,7 @@
   try {
     document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
     document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
+    document.documentElement.setAttribute("data-anim", localStorage.getItem("ailogy:anim") || "default");
   } catch (e) {}
 </script>
 <link rel="stylesheet" href="/static/vendor/katex/katex.min.css"
@@ -28,7 +29,8 @@
   <!-- 第二行：天 / 会话两级选择器（无会话时整体隐藏） -->
   <div id="header-row2" class="caps" hidden>
     <div class="cap-row"><span class="cap-tag">天</span><div id="cap-days" class="cap-list"></div></div>
-    <div class="cap-row"><span class="cap-tag">会话</span><div id="cap-sessions" class="cap-list"></div></div>
+    <div class="cap-row"><span class="cap-tag">会话</span><div id="cap-sessions" class="cap-list">
+      <button id="sess-collapse" class="cap cap-toggle cap-toggle-off" type="button"></button></div></div>
   </div>
 </header>
 

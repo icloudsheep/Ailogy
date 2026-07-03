@@ -8,6 +8,7 @@
   try {
     document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
     document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
+    document.documentElement.setAttribute("data-anim", localStorage.getItem("ailogy:anim") || "default");
   } catch (e) {}
 </script>
 <link rel="stylesheet" href="/static/frontend/shared/css/theme.css">

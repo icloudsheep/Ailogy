@@ -4,9 +4,24 @@
 .wrap .box { text-align: left; }
 .wrap .box .bt { margin-bottom: 18px; }
 .opt-row { display: flex; flex-wrap: wrap; gap: 10px; }
+/* 区块标题旁的信息图标 + 悬停/聚焦气泡：解释「灰态」含义 */
+.bt-info { position: relative; display: inline-flex; align-items: center; margin-left: 6px;
+  color: var(--dim); cursor: help; vertical-align: middle; outline: none; }
+.bt-info .icon { width: 15px; height: 15px; }
+.bt-info:hover, .bt-info:focus-visible { color: var(--txt); }
+.bt-info::after { content: attr(data-tip); position: absolute; left: 22px; top: 50%;
+  transform: translateY(-50%) translateX(-6px); width: max-content; max-width: 320px;
+  padding: 9px 13px; border-radius: 10px; font-size: 12.5px; line-height: 1.5; font-weight: 400;
+  color: var(--txt); background: var(--lg-bg); border: var(--lg-border);
+  backdrop-filter: blur(16px) saturate(185%); -webkit-backdrop-filter: blur(16px) saturate(185%);
+  box-shadow: 0 12px 30px -12px rgba(40,50,90,.55), var(--lg-inset);
+  opacity: 0; pointer-events: none; z-index: 40;
+  transition: opacity calc(.18s * var(--anim-k)) ease, transform calc(.2s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.2); }
+.bt-info:hover::after, .bt-info:focus-visible::after {
+  opacity: 1; transform: translateY(-50%) translateX(0); }
 .opt { font: inherit; font-size: 14px; padding: 10px 18px; border-radius: 12px; cursor: pointer;
   color: var(--txt); background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
-  text-decoration: none; transition: transform .18s, box-shadow .3s, background .25s, border-color .25s; }
+  text-decoration: none; transition: transform calc(.18s * var(--anim-k)), box-shadow calc(.3s * var(--anim-k)), background calc(.25s * var(--anim-k)), border-color calc(.25s * var(--anim-k)); }
 .opt:hover { transform: translateY(-1px); }
 .opt.on { box-shadow: 0 0 0 1.5px color-mix(in srgb, #6ea8fe 60%, transparent),
   0 6px 16px -7px #6ea8fe, var(--lg-inset); }
