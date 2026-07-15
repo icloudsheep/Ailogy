@@ -66,6 +66,10 @@ def _migrate():
                 conn.execute(text("DELETE FROM ai_insights"))
                 conn.execute(text(
                     "CREATE UNIQUE INDEX uq_insight_client ON ai_insights(client_id)"))
+        # ai_topics：为存量表补 emoji 列（AI 生成的主题图标，取代前端 hash 派生的固定池）
+        tps = {r[1] for r in conn.execute(text("PRAGMA table_info(ai_topics)"))}
+        if tps and "emoji" not in tps:
+            conn.execute(text("ALTER TABLE ai_topics ADD COLUMN emoji TEXT DEFAULT ''"))
 
 
 def _init_fts():

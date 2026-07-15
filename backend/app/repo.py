@@ -414,9 +414,14 @@ def list_topics_full(db, devices=None):
     综述仍取全量综述（综述是跨全部日志的，不随设备切分重算）。
     """
     if devices is None:
+        # 全量：主题综述/计数/emoji 都来自 ai_topics 缓存；会话数从 ai_insights 现算（缓存没存）
         rows = db.execute(text(
-            "SELECT topic, summary, entry_count, color, need_resummarize, updated_at "
-            "FROM ai_topics WHERE entry_count > 0 ORDER BY entry_count DESC, topic")).fetchall()
+            "SELECT t.topic AS topic, t.summary AS summary, t.entry_count AS entry_count, "
+            "  t.color AS color, t.emoji AS emoji, t.need_resummarize AS need_resummarize, "
+            "  t.updated_at AS updated_at, "
+            "  (SELECT COUNT(DISTINCT i.session_code) FROM ai_insights i WHERE i.topic = t.topic) AS session_count "
+            "FROM ai_topics t WHERE t.entry_count > 0 "
+            "ORDER BY t.entry_count DESC, t.topic")).fetchall()
         return [dict(r._mapping) for r in rows]
     if len(devices) == 0:
         return []
@@ -424,7 +429,9 @@ def list_topics_full(db, devices=None):
     params = {f"d{i}": d for i, d in enumerate(devices)}
     rows = db.execute(text(
         f"SELECT i.topic AS topic, COUNT(*) AS entry_count, "
+        f"  COUNT(DISTINCT i.session_code) AS session_count, "
         f"  MAX(i.color) AS color, "
+        f"  (SELECT emoji FROM ai_topics t WHERE t.topic = i.topic) AS emoji, "
         f"  (SELECT summary FROM ai_topics t WHERE t.topic = i.topic) AS summary "
         f"FROM ai_insights i WHERE COALESCE(i.device,'') IN ({ph}) "
         f"GROUP BY i.topic ORDER BY entry_count DESC, i.topic"), params).fetchall()

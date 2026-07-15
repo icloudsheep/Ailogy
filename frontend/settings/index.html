@@ -24,6 +24,7 @@
     <button class="snav on" data-cat="style"><svg class="icon" aria-hidden="true"><use href="#i-glass"></use></svg> <span>样式</span></button>
     <button class="snav" data-cat="viewer"><svg class="icon" aria-hidden="true"><use href="#i-waves"></use></svg> <span>日志</span></button>
     <button class="snav" data-cat="ai"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg> <span>智能</span></button>
+    <button class="snav" data-cat="about"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg> <span>关于</span></button>
   </nav>
 
   <div class="settings-panels">
@@ -227,11 +228,53 @@
         </div>
       </div>
     </div>
+
+    <!-- 关于：自动更新开关 + 当前版本 + 手动检查更新 -->
+    <div class="wrap settings-panel" data-cat="about">
+      <div class="ai-card">
+        <div class="ai-card-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg> 版本 &amp; 自动更新
+        </div>
+        <div class="ai-card-body upd-panel">
+          <div class="upd-row">
+            <div class="upd-info">
+              <div class="upd-label">当前版本</div>
+              <div class="upd-value"><b id="upd-current">…</b></div>
+            </div>
+            <a class="modal-btn" id="upd-goto-about" href="/about">查看更新日志 →</a>
+          </div>
+          <div class="upd-row">
+            <div class="upd-info">
+              <div class="upd-label">自动更新</div>
+              <div class="upd-desc">发现新版本时自动下载 GitHub Release 并覆盖本地文件，然后尝试重启服务。默认开启。</div>
+            </div>
+            <label class="upd-switch">
+              <input type="checkbox" id="upd-auto" />
+              <span class="upd-switch-slider"></span>
+            </label>
+          </div>
+          <div class="upd-row">
+            <div class="upd-info">
+              <div class="upd-label">最新版本</div>
+              <div class="upd-value" id="upd-latest">检查中…</div>
+              <div class="upd-desc" id="upd-latest-meta"></div>
+            </div>
+            <button class="modal-btn" id="upd-check">重新检查</button>
+            <button class="modal-btn ok" id="upd-install" hidden>立即更新</button>
+          </div>
+          <div class="upd-progress" id="upd-progress" hidden>
+            <div class="upd-progress-bar"><div class="upd-progress-fill" id="upd-progress-fill"></div></div>
+            <div class="upd-progress-text" id="upd-progress-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </main>
 <script src="/static/frontend/shared/js/utils.js"></script>
 <script src="/static/frontend/shared/js/icons.js"></script>
 <script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/updates.js"></script>
 <script src="/static/frontend/shared/js/header.js"></script>
 <script src="/static/frontend/shared/js/page-nav.js"></script>
 <script src="/settings-assets/settings.js"></script>

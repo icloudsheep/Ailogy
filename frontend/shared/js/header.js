@@ -28,6 +28,9 @@ function renderHeader(current) {
     + row2HTML;
   syncTopbar();
   bindNavTransition();
+  // 全局版本更新检测：给"关于"入口加红点 + 首次 toast 提示（updates.js 定义）。
+  // updates.js 未被引入时静默跳过；引入了就异步执行。
+  if (typeof checkUpdates === "function") checkUpdates();
 }
 
 function bindNavTransition() {

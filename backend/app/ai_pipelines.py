@@ -84,14 +84,19 @@ def process_insight(db, client_id):
     if not (base and key and model):
         raise RuntimeError("对话入口未配置")
 
-    existing = [t["topic"] for t in repo.list_ai_topics(db)]  # 已有主题，供复用
+    # 已有主题 + 各自的 emoji：分类时优先复用现有主题名与图标（避免同一主题反复生成不同 emoji）
+    existing_rows = repo.list_topics_full(db, None) or []
+    existing_names = [r["topic"] for r in existing_rows]
+    existing_emojis = {r["topic"]: (r.get("emoji") or "") for r in existing_rows}
     sys_prompt = prompts.get("classify") or ai_config.DEFAULT_PROMPTS["classify"]
     title = (entry.get("title") or "").strip()
     summary = (entry.get("summary") or "").strip()
     user = (
-        f"已有主题列表（尽量复用，语义相近就归入同一个）：{existing or '（暂无）'}\n\n"
+        f"已有主题列表（尽量复用，语义相近就归入同一个）：{existing_names or '（暂无）'}\n\n"
         f"待分类日志：\n标题：{title}\n正文：{summary[:2000]}\n\n"
-        '只输出 JSON：{"topic": "主题名"}'
+        '只输出 JSON：{"topic": "主题名", "emoji": "🌱"}\n'
+        "emoji 要求：单个 Unicode emoji 字符，语义贴合该主题（不是随便挑一个），"
+        "从直觉可判断主题类别；若复用已有主题名，emoji 也可留空、由后端沿用旧值。"
     )
     r = ai_client.chat_json(base, key, model, [
         {"role": "system", "content": sys_prompt},
@@ -100,30 +105,43 @@ def process_insight(db, client_id):
     ai_status.add_usage(r.get("usage"))
     if not r.get("ok"):
         raise RuntimeError(f"分类失败 HTTP {r.get('status')}: {r.get('error')}")
-    topic = (r["data"].get("topic") or "").strip() if isinstance(r.get("data"), dict) else ""
+    data = r.get("data") if isinstance(r.get("data"), dict) else {}
+    topic = (data.get("topic") or "").strip()
+    emoji = (data.get("emoji") or "").strip()
     if not topic:
         topic = "未归类"
+    # 复用已有主题时，若 AI 未给 emoji 或给的与旧值不同，一律沿用旧值（emoji 一旦固化不再变动）
+    prev_emoji = existing_emojis.get(topic, "")
+    if prev_emoji:
+        emoji = prev_emoji
+    elif not emoji:
+        emoji = "🗂️"   # 兜底，避免空图标
 
     prev = repo.get_insight_topic(db, client_id)   # 改主题时旧主题也需重算综述
     repo.upsert_insight(db, client_id, topic, entry)
-    _touch_topic(db, topic)
+    _touch_topic(db, topic, emoji=emoji)
     if prev and prev != topic:
         _touch_topic(db, prev)
         return {topic, prev}   # worker 会 update(set) 合并
     return topic
 
 
-def _touch_topic(db, topic):
-    """确保 ai_topics 有该主题行，并标记需重算综述、刷新计数与代表色。"""
+def _touch_topic(db, topic, emoji=None):
+    """确保 ai_topics 有该主题行，并标记需重算综述、刷新计数与代表色。
+
+    emoji：新主题首次落库时写入；已有主题不覆盖（emoji 一次固化不再变动，避免闪烁）。
+    """
     from sqlalchemy import text as _t
     cnt = repo.topic_entry_count(db, topic)
     color = repo.topic_color(db, topic)
     db.execute(_t("""
-        INSERT INTO ai_topics (topic, summary, entry_count, need_resummarize, color, updated_at)
-        VALUES (:t, '', :cnt, 1, :color, datetime('now'))
+        INSERT INTO ai_topics (topic, summary, entry_count, need_resummarize, color, emoji, updated_at)
+        VALUES (:t, '', :cnt, 1, :color, COALESCE(:emoji,''), datetime('now'))
         ON CONFLICT(topic) DO UPDATE SET entry_count=:cnt, need_resummarize=1,
-          color=COALESCE(excluded.color, ai_topics.color), updated_at=datetime('now')
-    """), {"t": topic, "cnt": cnt, "color": color})
+          color=COALESCE(excluded.color, ai_topics.color),
+          emoji=CASE WHEN COALESCE(ai_topics.emoji,'')='' THEN COALESCE(:emoji, ai_topics.emoji) ELSE ai_topics.emoji END,
+          updated_at=datetime('now')
+    """), {"t": topic, "cnt": cnt, "color": color, "emoji": emoji})
 
 
 def handle_delete(db, client_id):

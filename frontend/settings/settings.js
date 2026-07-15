@@ -308,3 +308,101 @@ if (_q("ai-reset-emb")) _q("ai-reset-emb").onclick = async () => {
 // 启动每秒轮询（全程运行，以便 worker 忙时随处都能弹加载 toast）
 _runTimer = setInterval(pollWorker, 1000);
 pollWorker();
+
+// ═════════ 关于（版本 & 自动更新）═════════
+const UpdAPI = {
+  info: () => fetch("/api/updates").then((r) => r.json()),
+  settingsGet: () => fetch("/api/updates/settings").then((r) => r.json()),
+  settingsPut: (autoUpdate) => fetch("/api/updates/settings", {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ auto_update: !!autoUpdate }),
+  }).then((r) => r.json()),
+  install: (tag) => fetch("/api/updates/install", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(tag ? { tag } : {}),
+  }).then((r) => r.json()),
+  status: () => fetch("/api/updates/status").then((r) => r.json()),
+};
+
+let _updInstallTimer = 0;
+
+async function loadUpdatesTab() {
+  try {
+    const info = await UpdAPI.info();
+    document.getElementById("upd-current").textContent = info.current || "未知";
+    const auto = !!info.auto_update;
+    document.getElementById("upd-auto").checked = auto;
+    const latestEl = document.getElementById("upd-latest");
+    const metaEl = document.getElementById("upd-latest-meta");
+    const installBtn = document.getElementById("upd-install");
+    if (info.latest && info.latest.tag) {
+      latestEl.textContent = info.latest.tag + (info.has_update ? "（可更新）" : "（已是最新）");
+      const pub = info.latest.published_at ? new Date(info.latest.published_at).toLocaleDateString() : "";
+      metaEl.textContent = [pub && "发布于 " + pub, info.latest.name].filter(Boolean).join(" · ");
+      installBtn.hidden = !info.has_update;
+    } else {
+      latestEl.textContent = "暂无正式发布";
+      metaEl.textContent = info.error || "";
+      installBtn.hidden = true;
+    }
+  } catch (e) {
+    document.getElementById("upd-latest").textContent = "检查失败：" + String(e);
+  }
+}
+
+document.getElementById("upd-check").onclick = () => {
+  document.getElementById("upd-latest").textContent = "检查中…";
+  loadUpdatesTab();
+};
+
+document.getElementById("upd-auto").addEventListener("change", async (ev) => {
+  const on = ev.target.checked;
+  try {
+    await UpdAPI.settingsPut(on);
+    showToast(on ? "已开启自动更新" : "已关闭自动更新", { type: "ok" });
+  } catch (e) {
+    ev.target.checked = !on;
+    showToast("保存失败：" + String(e), { type: "err" });
+  }
+});
+
+document.getElementById("upd-install").onclick = async () => {
+  const ok = confirm("立即从 GitHub 下载最新版本并覆盖本地文件？服务会自动尝试重启。");
+  if (!ok) return;
+  const r = await UpdAPI.install();
+  if (!r.ok) { showToast(r.error || "触发失败", { type: "err" }); return; }
+  showToast("开始更新：" + r.target, { type: "ok" });
+  pollUpdInstall();
+};
+
+function pollUpdInstall() {
+  clearInterval(_updInstallTimer);
+  const box = document.getElementById("upd-progress");
+  const fill = document.getElementById("upd-progress-fill");
+  const text = document.getElementById("upd-progress-text");
+  box.hidden = false;
+  const tick = async () => {
+    let s;
+    try { s = await UpdAPI.status(); } catch (_) { return; }
+    fill.style.width = (s.progress || 0) + "%";
+    const label = { idle: "空闲", downloading: "下载中", extracting: "解压中",
+      applying: "应用文件", done: "重启中…", needs_restart: "需手动重启", error: "失败" }[s.phase] || s.phase;
+    text.textContent = label + (s.message ? " · " + s.message : "") + (s.error ? " · " + s.error : "");
+    if (s.phase === "done") {
+      // 服务可能任何一秒 exec 重启；轮询状态失败即视为重启成功
+      setTimeout(() => location.reload(), 3000);
+    }
+    if (s.phase === "error" || s.phase === "needs_restart") {
+      clearInterval(_updInstallTimer);
+    }
+  };
+  _updInstallTimer = setInterval(tick, 1000);
+  tick();
+}
+
+// 切到"关于"分类时自动加载
+const _origShowCat = showCat;
+showCat = function (cat) {
+  _origShowCat(cat);
+  if (cat === "about") loadUpdatesTab();
+};

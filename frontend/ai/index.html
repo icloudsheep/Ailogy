@@ -24,6 +24,36 @@
 <div class="bg"></div>
 
 <header id="app-header" data-icon="sparkles" data-title="智能">
+  <!-- 提问入口：banner 里的搜索式胶囊。点开后展开成搜索式输入行 + 引用/回答/历史。
+       仅一级页面显示（.ai-lane 打开时 body[data-ai-level="2"] 隐藏）。 -->
+  <div id="ask-widget" class="ask-widget">
+    <button id="ask-btn" class="ask-btn" title="向 AI 提问（RAG）">
+      <svg class="icon" aria-hidden="true"><use href="#i-msg"></use></svg>
+      <span class="ask-btn-label">提问</span>
+    </button>
+    <div id="ask-panel" class="ask-panel" hidden>
+      <div class="ask-input-row">
+        <svg class="icon" aria-hidden="true"><use href="#i-msg"></use></svg>
+        <input id="ask-input" type="text" placeholder="向 AI 提问（会检索历史日志作为参考）…" autocomplete="off" />
+        <button id="ask-send" class="ask-send" title="发送 (Enter)">
+          <svg class="icon" aria-hidden="true"><use href="#i-send"></use></svg>
+        </button>
+        <button id="ask-close" class="ask-close" title="关闭 (Esc)">
+          <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+        </button>
+      </div>
+      <div id="ask-refs" class="ask-refs" hidden></div>
+      <div id="ask-answer" class="ask-answer" hidden>
+        <div class="ask-answer-body md" id="ask-answer-body"></div>
+        <div class="ask-answer-tools" hidden>
+          <button class="ask-mini-btn" data-act="copy">
+            <svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg> 复制
+          </button>
+        </div>
+      </div>
+      <div id="ask-history" class="ask-history" hidden></div>
+    </div>
+  </div>
   <button id="device-pick" class="month-pick"><svg class="icon" aria-hidden="true"><use href="#i-laptop"></use></svg> <b id="device-label">全部设备</b></button>
   <!-- 返回按钮：仅二级页面显示，位于「全部设备」右侧 -->
   <button id="ai-back" class="month-pick" hidden><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> <b>返回主题</b></button>
@@ -44,6 +74,7 @@
     <div class="empty-sub">配置好模型后，AI 会自动把日志归类成主题</div>
   </div>
 </div>
+
 
 <!-- 主题综述卡片（点主题节点弹出） -->
 <div id="topic-card" class="topic-card" hidden>
@@ -73,6 +104,7 @@
 <script src="/static/frontend/shared/js/mermaid.js"></script>
 <script src="/static/frontend/shared/js/katex.js"></script>
 <script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/updates.js"></script>
 <script src="/static/frontend/shared/js/header.js"></script>
 <script src="/static/frontend/shared/js/page-nav.js"></script>
 <script src="/static/frontend/viewer/js/aliases.js"></script>

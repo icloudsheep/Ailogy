@@ -205,3 +205,40 @@ html[data-style="newspaper"] .ai-subtab.on { background: var(--np-rule,#2a2a2a);
 .ai-reset-desc { flex: 1; font-size: 12.5px; color: var(--dim); line-height: 1.5; }
 .ai-reset-desc b { color: var(--txt); }
 .ai-reset-row .modal-btn { flex: none; cursor: pointer; }
+
+/* ═════════ 关于（更新面板）═════════ */
+.upd-panel .upd-row { display: flex; align-items: center; gap: 14px;
+  padding: 12px 0; border-top: 1px solid var(--line); }
+.upd-panel .upd-row:first-child { border-top: 0; padding-top: 4px; }
+.upd-info { flex: 1; min-width: 0; }
+.upd-label { font-size: 12.5px; color: var(--dim); margin-bottom: 3px; }
+.upd-value { font-size: 15px; color: var(--txt); font-weight: 600; }
+.upd-value b { font-variant-numeric: tabular-nums; }
+.upd-desc { font-size: 12px; color: var(--dim); line-height: 1.5; margin-top: 3px; }
+.upd-row .modal-btn { flex: none; cursor: pointer; }
+.modal-btn.ok { color: #fff; background: linear-gradient(135deg, #6ea8fe, #9d7bff);
+  box-shadow: 0 4px 12px -3px color-mix(in srgb, #6ea8fe 70%, transparent); }
+.modal-btn.ok:hover { transform: translateY(-1px);
+  box-shadow: 0 6px 16px -3px color-mix(in srgb, #6ea8fe 80%, transparent); }
+
+/* 开关样式 */
+.upd-switch { position: relative; display: inline-block; width: 42px; height: 24px; flex: none; cursor: pointer; }
+.upd-switch input { opacity: 0; width: 0; height: 0; }
+.upd-switch-slider { position: absolute; inset: 0; border-radius: 999px;
+  background: color-mix(in srgb, var(--txt) 25%, transparent);
+  transition: background .2s ease; }
+.upd-switch-slider::before { content: ""; position: absolute; height: 18px; width: 18px;
+  left: 3px; top: 3px; border-radius: 50%; background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.2); transition: transform .22s cubic-bezier(.4,0,.2,1); }
+.upd-switch input:checked + .upd-switch-slider {
+  background: linear-gradient(135deg, #6ea8fe, #9d7bff); }
+.upd-switch input:checked + .upd-switch-slider::before { transform: translateX(18px); }
+
+/* 进度条 */
+.upd-progress { padding-top: 10px; border-top: 1px solid var(--line); margin-top: 4px; }
+.upd-progress-bar { height: 6px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--txt) 12%, transparent); }
+.upd-progress-fill { height: 100%; width: 0; border-radius: 999px;
+  background: linear-gradient(90deg, #6ea8fe, #9d7bff);
+  transition: width .3s ease; }
+.upd-progress-text { font-size: 12px; color: var(--dim); margin-top: 6px; }

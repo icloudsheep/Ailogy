@@ -372,6 +372,17 @@
   .hnav.on { background: var(--lg-bg); border: var(--lg-border); color: var(--txt);
     box-shadow: 0 0 0 1.5px color-mix(in srgb, #6ea8fe 50%, transparent), var(--lg-inset); }
   .hnav .emo { font-size: 14px; }
+  /* 全局版本更新红点：JS 检测到 has_update 时给"关于"入口加 .has-update 类 */
+  .hnav.has-update { position: relative; }
+  .hnav.has-update::after { content: ""; position: absolute; top: 2px; right: 2px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff7a7a, #d63b3b);
+    border: 1.5px solid var(--panel, #fff);
+    box-shadow: 0 0 6px rgba(214,59,59,.7);
+    animation: hnav-dot-blink 1.6s ease-in-out infinite; }
+  @keyframes hnav-dot-blink { 0%,100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.25); opacity: .75; } }
+  html[data-mode="dark"] .hnav.has-update::after { border-color: #12172a; }
   /* 窄屏隐藏导航文字、只留图标 */
   @media (max-width: 640px) { .hnav-label { display: none; } }
 

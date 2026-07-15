@@ -91,10 +91,13 @@ class AITopic(Base):
 
     一主题一条：summary 是把该主题下所有日志汇总成的更高视角综述。
     主题内任一日志增/删/改 → need_resummarize=1 → worker 批末防抖重算一次。
+    emoji：由 AI 首次判定该主题时同产（写入分类接口的返回），此后固化；
+      语义比 hash 派生更准，避免"日志工具搭建 → 显示 📦"这种误配。
     """
     __tablename__ = "ai_topics"
     topic: Mapped[str] = mapped_column(String(128), primary_key=True)
     summary: Mapped[str] = mapped_column(Text, default="")                    # 主题综述（跨条汇总）
+    emoji: Mapped[str] = mapped_column(String(16), default="")               # AI 生成的主题 emoji（首次固化）
     entry_count: Mapped[int] = mapped_column(Integer, default=0)              # 该主题下日志数
     need_resummarize: Mapped[int] = mapped_column(Integer, default=1, index=True)  # 1=待重算综述
     color: Mapped[str] = mapped_column(String(16), nullable=True)            # 代表色（取主题内某会话色）

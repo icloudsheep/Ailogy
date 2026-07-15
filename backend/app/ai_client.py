@@ -94,6 +94,54 @@ def chat_json(base_url, api_key, model, messages, timeout=30.0):
                 "ms": int((time.time() - t0) * 1000)}
 
 
+def chat_stream(base_url, api_key, model, messages, timeout=180.0):
+    """SSE 流式对话补全（OpenAI 协议）。生成器：逐个 yield 增量文本片段；
+    结束时 yield 一个特殊 dict {"__done__": True, "usage": {...}}。
+    异常时 yield {"__error__": "..."}。上游 endpoint 会把每个片段包装成 SSE 帧下发前端。
+    """
+    import json as _json
+    url = _join(base_url, "chat/completions")
+    headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    payload = {"model": model, "messages": messages, "stream": True}
+    try:
+        with httpx.stream("POST", url, headers=headers, json=payload, timeout=timeout) as r:
+            if r.status_code >= 400:
+                yield {"__error__": f"HTTP {r.status_code}: {_short(r.read().decode('utf-8', 'ignore'))}"}
+                return
+            usage = None
+            for raw_line in r.iter_lines():
+                if not raw_line:
+                    continue
+                # httpx iter_lines 已按行拆好；OpenAI SSE 每帧以 "data: <json>" 开头
+                line = raw_line.strip()
+                if line.startswith("data:"):
+                    line = line[5:].strip()
+                if not line or line == "[DONE]":
+                    continue
+                try:
+                    obj = _json.loads(line)
+                except Exception:
+                    continue
+                # 增量文本：choices[0].delta.content
+                try:
+                    choices = obj.get("choices") or []
+                    if choices:
+                        delta = choices[0].get("delta") or {}
+                        chunk = delta.get("content")
+                        if chunk:
+                            yield chunk
+                except Exception:
+                    pass
+                # 某些服务在末尾帧带 usage
+                if obj.get("usage"):
+                    usage = obj["usage"]
+            yield {"__done__": True, "usage": usage}
+    except Exception as e:
+        yield {"__error__": f"{type(e).__name__}: {e}"}
+
+
 def embed(base_url, api_key, model, texts, timeout=30.0):
     """调用 /embeddings。texts 为字符串列表。返回 {ok, vectors, dim, error, status, ms}。"""
     url = _join(base_url, "embeddings")

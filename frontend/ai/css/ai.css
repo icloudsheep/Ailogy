@@ -1,66 +1,208 @@
 /* AI 一级页面：主题爆炸图（galaxy）。中心「洞察」核，主题节点向四周迸发，
    悬停显名、交替闪烁 + 大小脉动，点击弹综述卡片。二级页面复用 viewer 泳道样式。 */
 
-/* 爆炸图铺满 banner 之下的视口，独立一层 */
+/* 爆炸图铺满 banner 之下的视口，独立一层。
+   [hidden] 兜底：display:grid 会覆盖 hidden 属性的默认 display:none，
+   进入二级页面时必须 !important 强隐藏，否则爆炸图残留在二级页面顶部
+   （同理 #header-row2 是 .caps 的 flex 容器，也需要兜底）。 */
 .ai-galaxy { position: absolute; inset: 0; top: var(--topbar-h, 150px);
   overflow: hidden; display: grid; place-items: center;
-  transition: top calc(.42s * var(--anim-k)) cubic-bezier(.2,.8,.2,1); }
+  transition: top calc(.42s * var(--anim-k)) cubic-bezier(.2,.8,.2,1);
+  /* 全局边缘遮罩：径向渐变，中心完全不透明、四角渐入 0。所有子元素（拖尾/节点/名字）
+     都会在靠近边缘时自然淡出，配合物理引擎的边界势阱形成"视觉+力"双重收敛。 */
+  -webkit-mask-image: radial-gradient(ellipse 78% 92% at 50% 50%,
+    #000 55%, rgba(0,0,0,.7) 75%, rgba(0,0,0,.15) 92%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 92% at 50% 50%,
+    #000 55%, rgba(0,0,0,.7) 75%, rgba(0,0,0,.15) 92%, transparent 100%); }
+.ai-galaxy[hidden] { display: none !important; }
+#header-row2[hidden] { display: none !important; }
 .galaxy-stage { position: relative; width: 100%; height: 100%; }
 
-/* 中心「洞察」核：呼吸光环 + 主题色渐变球 */
+/* 中心「洞察」核：呼吸光环 + 双色渐变球。渐变色由 JS 动态设置 --core-a/--core-b 两个变量，
+   会随行星系里存在的主题色轮换（每 8s 挑一个主题色替换，长过渡 4s，视觉上像"星芒色相在流动"）。
+   ⚠️ CSS transition 只能补间"具体像素/颜色"的属性；--core-a 用 @property 让它可过渡。 */
+@property --core-a { syntax: '<color>'; inherits: true; initial-value: #9d7bff; }
+@property --core-b { syntax: '<color>'; inherits: true; initial-value: #6ea8fe; }
 .galaxy-core { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
   width: 108px; height: 108px; border-radius: 50%; display: grid; place-items: center;
   z-index: 3; cursor: default; text-align: center;
+  --core-a: #9d7bff; --core-b: #6ea8fe;
   background: radial-gradient(circle at 38% 32%,
-    color-mix(in srgb, #9d7bff 85%, #fff), color-mix(in srgb, #6ea8fe 60%, #2a344a));
-  border: 2px solid color-mix(in srgb, #9d7bff 70%, #fff);
-  box-shadow: 0 0 0 6px color-mix(in srgb, #9d7bff 16%, transparent),
-    0 0 42px -4px color-mix(in srgb, #6ea8fe 80%, transparent);
-  animation: core-breathe calc(3.4s * var(--anim-k)) ease-in-out infinite; }
+    color-mix(in srgb, var(--core-a) 85%, #fff), color-mix(in srgb, var(--core-b) 60%, #2a344a));
+  border: 2px solid color-mix(in srgb, var(--core-a) 70%, #fff);
+  box-shadow:
+    0 0 0 14px color-mix(in srgb, var(--core-a) 18%, transparent),
+    0 0 40px 8px color-mix(in srgb, var(--core-a) 40%, transparent),
+    0 0 120px 20px color-mix(in srgb, var(--core-b) 55%, transparent);
+  /* @property 支持 → --core-a/-b 直接可 transition；
+     不支持时（旧浏览器），background/border/box-shadow 各自 transition 兜底。 */
+  transition: --core-a 4s ease, --core-b 4s ease,
+    background 4s ease, border-color 4s ease; }
+.galaxy-core { animation: core-breathe calc(3.4s * var(--anim-k)) ease-in-out infinite; }
 @keyframes core-breathe {
-  0%,100% { box-shadow: 0 0 0 6px color-mix(in srgb,#9d7bff 16%,transparent), 0 0 42px -4px color-mix(in srgb,#6ea8fe 80%,transparent); }
-  50% { box-shadow: 0 0 0 12px color-mix(in srgb,#9d7bff 8%,transparent), 0 0 64px 2px color-mix(in srgb,#6ea8fe 90%,transparent); } }
+  0%,100% { box-shadow:
+    0 0 0 14px color-mix(in srgb, var(--core-a) 18%, transparent),
+    0 0 40px 8px color-mix(in srgb, var(--core-a) 40%, transparent),
+    0 0 120px 20px color-mix(in srgb, var(--core-b) 55%, transparent); }
+  50% { box-shadow:
+    0 0 0 22px color-mix(in srgb, var(--core-a) 10%, transparent),
+    0 0 60px 14px color-mix(in srgb, var(--core-a) 55%, transparent),
+    0 0 160px 30px color-mix(in srgb, var(--core-b) 75%, transparent); } }
+/* 处理中状态：AI worker busy 时给洞察核加"脉动波纹" —— 三个 ring 依次向外扩散淡出。
+   由 JS 根据 /worker/status 的 busy 字段切换 .core-busy 类。 */
+.galaxy-core::before, .galaxy-core::after {
+  content: ""; position: absolute; inset: -6px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, #9d7bff 60%, transparent);
+  opacity: 0; pointer-events: none; }
+.galaxy-core.core-busy::before {
+  animation: core-pulse calc(1.8s * var(--anim-k)) ease-out infinite; }
+.galaxy-core.core-busy::after {
+  animation: core-pulse calc(1.8s * var(--anim-k)) ease-out infinite;
+  animation-delay: calc(.9s * var(--anim-k)); }
+@keyframes core-pulse {
+  0%   { transform: scale(1); opacity: .8; border-width: 3px; }
+  100% { transform: scale(2.6); opacity: 0; border-width: 1px; } }
 .galaxy-core-emo .icon { width: 34px; height: 34px; color: #fff; filter: drop-shadow(0 1px 4px rgba(20,28,60,.5)); }
 .galaxy-core-label { display: block; font-size: 12px; font-weight: 700; color: #fff; margin-top: 2px;
   letter-spacing: 1px; text-shadow: 0 1px 4px rgba(20,28,60,.6); }
 
-/* 主题节点：绝对定位（JS 计算迸发坐标），液态玻璃圆球 + 主题色，交替闪烁+脉动 */
+/* 拟真行星系：不再画预设轨道环（真实太阳系也不画），改用 Canvas 拖尾
+   自然呈现轨迹。canvas 铺满 stage，位于所有 DOM 节点之下。 */
+.orbit-trail { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+
+/* 行星节点：液态玻璃圆球（不再是胶囊，文字放外部 .galaxy-name-cap）。
+   ⚠️ 位置由 RAF 每帧改 left/top → 不能给 left/top 加 transition（每帧覆盖），
+   也不能在 keyframes 里锁 left/top（会与 RAF 抢帧闪烁）。
+   transform 只保留 translate(-50%,-50%) 居中 + hover/selected 的 scale。 */
 .galaxy-node { position: absolute; transform: translate(-50%,-50%);
   display: grid; place-items: center; border-radius: 50%; cursor: pointer; z-index: 2;
-  background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--c) 82%, #fff), color-mix(in srgb, var(--c) 42%, #2a344a));
-  border: 2px solid color-mix(in srgb, var(--c) 78%, #fff);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent), 0 4px 16px -3px var(--c);
-  transition: transform calc(.5s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.25),
-    left calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1), top calc(.5s * var(--anim-k)) cubic-bezier(.2,.8,.2,1);
-  animation: node-pulse var(--pulse, 3s) ease-in-out infinite var(--delay, 0s); }
-.galaxy-node .gn-emo { font-size: 20px; line-height: 1; }
-@keyframes node-pulse {
-  0%,100% { transform: translate(-50%,-50%) scale(1); filter: brightness(1); }
-  50% { transform: translate(-50%,-50%) scale(1.14); filter: brightness(1.18); } }
-.galaxy-node:hover { transform: translate(-50%,-50%) scale(1.3); z-index: 5; animation-play-state: paused; }
-/* 迸发入场：从中心飞出 */
-.galaxy-node.enter { animation: gn-burst calc(.6s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.3) both; }
-@keyframes gn-burst { 0% { left: 50%; top: 50%; opacity: 0; transform: translate(-50%,-50%) scale(.2); }
-  100% { opacity: 1; } }
+  opacity: var(--ring-alpha, 1);         /* 保留 CSS 变量兜底：拟真引擎下恒为 1 */
+  will-change: left, top, opacity;       /* 提前吃 GPU 层，让 60fps 更稳 */
+  background: radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--c) 92%, #fff), color-mix(in srgb, var(--c) 45%, #1c2334));
+  border: 2px solid color-mix(in srgb, var(--c) 72%, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 16%, transparent),
+    0 6px 22px -6px color-mix(in srgb, var(--c) 80%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.35);
+  transition: transform calc(.28s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.25),
+    box-shadow calc(.3s * var(--anim-k)) ease, filter calc(.3s * var(--anim-k)) ease,
+    opacity calc(.3s * var(--anim-k)) ease,
+    width calc(.4s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.15),
+    height calc(.4s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.15);
+  animation: node-halo calc(3.4s * var(--anim-k)) ease-in-out infinite; }
+/* 点击主题时短暂开启 left/top 过渡，让"飞到中心"/"返回轨道"有可见动画；
+   仅在 JS 加 .moving 期间生效（RAF 见 .moving 会跳过位置覆写，避免过渡与逐帧写值打架）。 */
+/* 过渡时长基线 1.1s（是之前 0.55s 的两倍），再乘 --anim-k：
+   极速档 1.1s / 默认 1.87s / 优雅 2.86s，观感明显"滑"而非"弹"。 */
+/* 过渡时长：left/top 1.1s（变轨/回位）、width/height 0.6s（尺寸），再乘 --anim-k。
+   碰撞变轨与"飞回中心"共用同一套过渡，观感统一为"滑"。 */
+.galaxy-node.moving, .galaxy-name-cap.moving {
+  transition: left calc(1.1s * var(--anim-k)) cubic-bezier(.4,0,.2,1),
+    top calc(1.1s * var(--anim-k)) cubic-bezier(.4,0,.2,1),
+    transform calc(.4s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.25),
+    width calc(.6s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.15),
+    height calc(.6s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.15),
+    opacity calc(.4s * var(--anim-k)) ease,
+    box-shadow calc(.4s * var(--anim-k)) ease; }
+.galaxy-node .gn-emo { font-size: clamp(20px, 40%, 40px); line-height: 1;
+  text-shadow: 0 1px 3px rgba(20,28,60,.45); transition: opacity calc(.2s * var(--anim-k)) ease; }
+/* 呼吸光晕：只改光影，不动位置 */
+@keyframes node-halo {
+  0%,100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 16%, transparent),
+    0 6px 22px -6px color-mix(in srgb, var(--c) 80%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.35); filter: brightness(1); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--c) 22%, transparent),
+    0 10px 30px -4px color-mix(in srgb, var(--c) 95%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.42); filter: brightness(1.08); } }
+.galaxy-node:hover { transform: translate(-50%,-50%) scale(1.12); z-index: 5;
+  animation-play-state: paused; }
+/* 点击某个主题后（.topic-focus）：
+   1) 中心「洞察」核淡出，让位给被选中的主题（避免两个大球叠在一起）；
+   2) 其他非选中节点透明度降到 0.5，视觉聚焦被选中的那颗；
+   3) 其他节点的名字胶囊同步淡化并禁止点击。 */
+.ai-galaxy.topic-focus .galaxy-core { opacity: 0; transform: translate(-50%,-50%) scale(.6); pointer-events: none; }
+.galaxy-core { transition: opacity calc(.4s * var(--anim-k)) ease,
+  transform calc(.4s * var(--anim-k)) cubic-bezier(.4,0,.6,1); }
+.ai-galaxy.topic-focus .galaxy-node:not(.selected) {
+  pointer-events: none; filter: saturate(.7);
+  opacity: calc(var(--ring-alpha, 1) * .5); }
+.ai-galaxy.topic-focus .galaxy-name-cap { opacity: 0; }
+.ai-galaxy.topic-focus .galaxy-node:not(.selected):hover { transform: translate(-50%,-50%) scale(1); }
+/* 迸发入场：只做透明度 + scale，不锁 left/top（避免与 RAF 抢帧导致闪烁） */
+.galaxy-node.enter { animation: gn-burst calc(.6s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.3) both,
+  node-halo calc(3.4s * var(--anim-k)) ease-in-out calc(.6s * var(--anim-k)) infinite; }
+@keyframes gn-burst {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.35); }
+  100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
 
-/* 节点标签：悬停浮现在节点下方 */
-.galaxy-label { position: absolute; transform: translate(-50%, 8px); white-space: nowrap;
-  font-size: 12.5px; font-weight: 650; color: var(--txt); pointer-events: none; z-index: 6;
-  padding: 3px 9px; border-radius: 8px; opacity: 0; transition: opacity calc(.2s * var(--anim-k)) ease;
-  background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-.galaxy-label.on { opacity: 1; }
+/* 主题名胶囊：固定挂在球正下方，主题色半透明底 + 同色描边，居中文字。
+   由 JS 与节点位置联动。⚠️ 不加 backdrop-filter —— RAF 每帧改 left/top 时，
+   模糊层会被反复重绘导致掉帧（原来 30fps 的元凶就是这个）。 */
+.galaxy-name-cap { position: absolute; transform: translate(-50%, 0);
+  padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 650;
+  white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+  opacity: var(--ring-alpha, 1);   /* 环号越大越淡，与节点保持一致 */
+  will-change: left, top, opacity;
+  color: color-mix(in srgb, var(--c) 30%, var(--txt));
+  background: color-mix(in srgb, var(--c) 26%, rgba(255,255,255,.35));
+  border: 1px solid color-mix(in srgb, var(--c) 60%, transparent);
+  box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--c) 70%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.25);
+  pointer-events: none; z-index: 4; text-align: center;
+  transition: opacity calc(.3s * var(--anim-k)) ease; }
+:root[data-mode="dark"] .galaxy-name-cap {
+  color: color-mix(in srgb, var(--c) 20%, #fff);
+  background: color-mix(in srgb, var(--c) 32%, rgba(20,28,60,.55)); }
+/* 被选中节点自身的名字胶囊隐藏（用户要求：中心节点下方不应有主题标题）；
+   由 JS 给对应 .galaxy-name-cap 加 .hide-on-select 类精确控制，避免误伤其他节点。 */
+.galaxy-name-cap.hide-on-select { opacity: 0 !important; }
 
-/* 选中态节点：放大 + 主题色强光环 + 对号（与日志节点选中一致），不脉动 */
-.galaxy-node .gn-check { position: absolute; inset: 0; display: grid; place-items: center;
-  opacity: 0; transform: scale(.4); transition: opacity calc(.22s * var(--anim-k)) ease,
+/* 更新红点：主题有新处理产物（AI 分类/综述/向量化更新）时显示，
+   位于日志数角标的对面（左上），醒目提示"有变化，点击查看" */
+.gn-dot { position: absolute; top: -3px; left: -3px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ff7a7a, #d63b3b);
+  border: 2px solid #fff;
+  box-shadow: 0 0 6px rgba(214,59,59,.8), 0 0 12px rgba(255,122,122,.5);
+  z-index: 4; pointer-events: none;
+  animation: dot-blink calc(1.6s * var(--anim-k)) ease-in-out infinite; }
+.gn-dot[hidden] { display: none; }
+@keyframes dot-blink {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: .75; }
+}
+:root[data-mode="dark"] .gn-dot { border-color: #12172a; }
+
+/* 日志数角标：右上角小胶囊，深色底 + 白字，与常见 badge 视觉一致。
+   放在球体右上角内侧（top:-2px right:-6px），随节点缩放而定位 → 逻辑上属于球。 */
+.gn-count { position: absolute; top: -4px; right: -6px;
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: #fff; letter-spacing: .2px;
+  background: color-mix(in srgb, var(--c) 70%, #1c2334);
+  border: 1.5px solid rgba(255,255,255,.75);
+  box-shadow: 0 2px 6px -1px color-mix(in srgb, var(--c) 60%, transparent);
+  z-index: 3; pointer-events: none; }
+:root[data-mode="dark"] .gn-count { border-color: color-mix(in srgb, var(--c) 40%, rgba(255,255,255,.4)); }
+.galaxy-node.selected .gn-count { opacity: 0; transition: opacity calc(.2s * var(--anim-k)) ease; }
+
+/* 选中态：emoji 位置换为对号。对号必须与 emoji 同位（球正中央）——
+   原方案用 left:6px（是胶囊时代残留），球形节点会看着"偏左"。改用 inset:0 + grid 居中。 */
+.galaxy-node .gn-check { position: absolute; inset: 0;
+  display: grid; place-items: center; opacity: 0;
+  transform: scale(.4);
+  transition: opacity calc(.22s * var(--anim-k)) ease,
     transform calc(.28s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.4); }
-.galaxy-node .gn-check .icon { width: 46%; height: 46%; color: #fff; stroke-width: 2.6;
+.galaxy-node .gn-check .icon { width: 44%; height: 44%; color: #fff; stroke-width: 2.6;
   filter: drop-shadow(0 1px 3px rgba(20,28,60,.6)); }
+/* 选中态：尺寸/位置由 flyToCenter 逐帧写入，禁用 CSS transition 避免和 RAF 抢帧 */
 .galaxy-node.selected { z-index: 8; animation: none;
-  transform: translate(-50%,-50%) scale(1.5);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 34%, transparent), 0 0 30px var(--c); }
-.galaxy-node.selected .gn-emo { opacity: 0; transform: scale(.5); transition: opacity calc(.2s * var(--anim-k)); }
+  transition: box-shadow calc(.3s * var(--anim-k)) ease,
+    filter calc(.3s * var(--anim-k)) ease;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 34%, transparent),
+    0 0 40px color-mix(in srgb, var(--c) 90%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.5); }
+.galaxy-node.selected .gn-emo { opacity: 0; }
 .galaxy-node.selected .gn-check { opacity: 1; transform: scale(1); }
 /* 节点离场：缩回中心淡出 */
 .galaxy-node.leaving { opacity: 0; transform: translate(-50%,-50%) scale(.2);
@@ -118,3 +260,106 @@
   transition: transform calc(.4s * var(--anim-k)) cubic-bezier(.2,.9,.3,1.1), opacity calc(.36s * var(--anim-k)) ease; }
 .ai-lane.leaving .left { transform: scale(.7) translateX(-80px); opacity: 0; }
 .ai-lane.leaving .right { transform: scale(.7) translateX(80px); opacity: 0; }
+
+/* ═══════════ 左上角"提问"按钮 & 展开面板 ═══════════
+   仿设置里搜索的三态：胶囊按钮 → 输入行 → 引用/回答/历史列表。
+   位置：ai-galaxy 内绝对定位，左上留 20px 边距。z-index 高于节点，避免被行星挡。
+   遮罩：该 widget 及其子元素设置 mask:none，避免被 .ai-galaxy 的边缘遮罩擦掉。 */
+/* ask-widget 放在顶栏内（与 device-pick 同排），点开后 panel 绝对定位挂到按钮下方。
+   二级页面通过 body[data-ai-level="2"] 整个隐藏（仅一级页面显示）。 */
+.ask-widget { position: relative; display: inline-flex; }
+body[data-ai-level="2"] .ask-widget { display: none; }
+.ask-btn { display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 999px; cursor: pointer; user-select: none;
+  font-size: 13px; font-weight: 600; color: var(--txt);
+  background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
+  transition: transform .2s ease, box-shadow .2s ease; }
+.ask-btn:hover { transform: translateY(-1px); }
+.ask-btn .icon { width: 15px; height: 15px; }
+
+.ask-panel { position: absolute; top: calc(100% + 8px); left: 0; width: min(520px, 60vw);
+  border-radius: 14px; padding: 10px 12px; box-sizing: border-box;
+  background: var(--lg-bg); border: var(--lg-border); box-shadow: var(--lg-inset);
+  opacity: 0; transform: translateY(-6px) scale(.98);
+  transition: opacity .22s ease, transform .28s cubic-bezier(.2,.9,.3,1.15);
+  max-height: min(78vh, 720px); overflow: auto; }
+.ask-panel.on { opacity: 1; transform: none; }
+.ask-panel[hidden] { display: none !important; }
+
+.ask-input-row { display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 10px;
+  background: color-mix(in srgb, var(--txt) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--txt) 12%, transparent); }
+.ask-input-row .icon { width: 15px; height: 15px; color: var(--dim); flex: none; }
+.ask-input-row input { flex: 1; min-width: 0; background: none; border: 0; outline: 0;
+  color: var(--txt); font-size: 14px; padding: 4px 0; }
+.ask-input-row input::placeholder { color: var(--dim); }
+.ask-send, .ask-close { background: none; border: 0; cursor: pointer; padding: 4px;
+  border-radius: 6px; color: var(--dim); }
+.ask-send:hover, .ask-close:hover { background: color-mix(in srgb, var(--txt) 10%, transparent); color: var(--txt); }
+.ask-send .icon, .ask-close .icon { width: 15px; height: 15px; }
+.ask-send { color: color-mix(in srgb, var(--txt) 60%, #6ea8fe); }
+
+/* 引用预览 */
+.ask-refs { margin-top: 10px; }
+.ask-refs[hidden] { display: none; }
+.ask-refs-head { font-size: 12px; color: var(--dim); margin-bottom: 6px; }
+.ask-refs-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; }
+.ask-ref-item { display: flex; gap: 8px; padding: 8px 10px; border-radius: 8px;
+  background: color-mix(in srgb, var(--txt) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--txt) 10%, transparent);
+  cursor: pointer; transition: background .18s ease; }
+.ask-ref-item:hover { background: color-mix(in srgb, var(--txt) 8%, transparent); }
+.ask-ref-item input[type=checkbox] { flex: none; margin-top: 3px; }
+.ask-ref-body { flex: 1; min-width: 0; }
+.ask-ref-title { font-size: 13px; font-weight: 600; color: var(--txt);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ask-ref-score { font-size: 11px; color: var(--dim); font-weight: 500; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.ask-ref-meta { font-size: 11.5px; color: var(--dim); margin-top: 2px; }
+.ask-ref-preview { font-size: 12.5px; color: color-mix(in srgb, var(--txt) 75%, var(--dim));
+  line-height: 1.5; margin-top: 4px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ask-refs-foot { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.ask-refs-loading, .ask-refs-empty { padding: 12px; text-align: center;
+  font-size: 12.5px; color: var(--dim); }
+.ask-refs-error { padding: 10px 12px; border-radius: 8px; margin: 6px 0;
+  background: color-mix(in srgb, #d63b3b 12%, transparent);
+  color: color-mix(in srgb, var(--txt) 70%, #d63b3b); font-size: 12.5px; }
+
+/* 回答区（流式生成）*/
+.ask-answer { margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--txt) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--txt) 10%, transparent); }
+.ask-answer[hidden] { display: none; }
+.ask-answer-body { font-size: 13.5px; line-height: 1.7; color: var(--txt); word-break: break-word; }
+.ask-answer-body p { margin: .35em 0; }
+.ask-answer-typing { color: var(--dim); font-size: 12.5px; font-style: italic; }
+.ask-answer-tools { display: flex; gap: 6px; margin-top: 8px; }
+
+/* 小按钮：复制/删除等 */
+.ask-mini-btn { display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px; border-radius: 8px; cursor: pointer; border: 0;
+  font-size: 12px; font-weight: 500; color: var(--txt);
+  background: color-mix(in srgb, var(--txt) 8%, transparent);
+  transition: background .18s ease; }
+.ask-mini-btn:hover { background: color-mix(in srgb, var(--txt) 14%, transparent); }
+.ask-mini-btn.primary { color: #fff;
+  background: color-mix(in srgb, #6ea8fe 80%, #4a72d0); }
+.ask-mini-btn.primary:hover { background: #6ea8fe; }
+.ask-mini-btn.danger:hover { background: color-mix(in srgb, #d63b3b 18%, transparent);
+  color: #d63b3b; }
+.ask-mini-btn .icon { width: 12px; height: 12px; }
+
+/* 历史列表 */
+.ask-history { margin-top: 10px; }
+.ask-history[hidden] { display: none; }
+.ask-history-head { font-size: 12px; color: var(--dim); margin-bottom: 6px;
+  padding-top: 6px; border-top: 1px dashed color-mix(in srgb, var(--txt) 15%, transparent); }
+.ask-history-item { padding: 8px 10px; border-radius: 8px; margin-bottom: 6px;
+  background: color-mix(in srgb, var(--txt) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--txt) 8%, transparent); }
+.ask-history-q { font-size: 12.5px; font-weight: 650; color: var(--txt); margin-bottom: 4px; }
+.ask-history-a { font-size: 12.5px; line-height: 1.55; color: color-mix(in srgb, var(--txt) 80%, var(--dim));
+  max-height: 140px; overflow: auto; }
+.ask-history-foot { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.ask-history-time { font-size: 11px; color: var(--dim); flex: 1; font-variant-numeric: tabular-nums; }
