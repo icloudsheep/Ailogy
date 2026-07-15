@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ailogy · 智能</title>
+<script>
+  try {
+    document.documentElement.setAttribute("data-style", localStorage.getItem("ailogy:style") || "glass");
+    document.documentElement.setAttribute("data-mode", localStorage.getItem("ailogy:mode") || "light");
+    document.documentElement.setAttribute("data-anim", localStorage.getItem("ailogy:anim") || "default");
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="/static/vendor/katex/katex.min.css"
+      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';">
+<link rel="stylesheet" href="/static/frontend/shared/css/theme.css">
+<link rel="stylesheet" href="/static/frontend/shared/css/markdown.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/timeline.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/detail.css">
+<link rel="stylesheet" href="/static/frontend/viewer/css/viewer.css">
+<link rel="stylesheet" href="/static/frontend/ai/css/ai.css">
+</head>
+<body class="viewer-page">
+<div class="bg"></div>
+
+<header id="app-header" data-icon="sparkles" data-title="智能">
+  <!-- 提问入口：banner 里的搜索式胶囊。点开后展开成搜索式输入行 + 引用/回答/历史。
+       仅一级页面显示（.ai-lane 打开时 body[data-ai-level="2"] 隐藏）。 -->
+  <div id="ask-widget" class="ask-widget">
+    <button id="ask-btn" class="ask-btn" title="向 AI 提问（RAG）">
+      <svg class="icon" aria-hidden="true"><use href="#i-msg"></use></svg>
+      <span class="ask-btn-label">提问</span>
+    </button>
+    <div id="ask-panel" class="ask-panel" hidden>
+      <div class="ask-input-row">
+        <svg class="icon" aria-hidden="true"><use href="#i-msg"></use></svg>
+        <input id="ask-input" type="text" placeholder="向 AI 提问（会检索历史日志作为参考）…" autocomplete="off" />
+        <button id="ask-send" class="ask-send" title="发送 (Enter)">
+          <svg class="icon" aria-hidden="true"><use href="#i-send"></use></svg>
+        </button>
+        <button id="ask-close" class="ask-close" title="关闭 (Esc)">
+          <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+        </button>
+      </div>
+      <div id="ask-refs" class="ask-refs" hidden></div>
+      <div id="ask-answer" class="ask-answer" hidden>
+        <div class="ask-answer-body md" id="ask-answer-body"></div>
+        <div class="ask-answer-tools" hidden>
+          <button class="ask-mini-btn" data-act="copy">
+            <svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg> 复制
+          </button>
+        </div>
+      </div>
+      <div id="ask-history" class="ask-history" hidden></div>
+    </div>
+  </div>
+  <button id="device-pick" class="month-pick"><svg class="icon" aria-hidden="true"><use href="#i-laptop"></use></svg> <b id="device-label">全部设备</b></button>
+  <!-- 返回按钮：仅二级页面显示，位于「全部设备」右侧 -->
+  <button id="ai-back" class="month-pick" hidden><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> <b>返回主题</b></button>
+  <!-- 二级页面：天/会话选择器（一级隐藏；主题为固定隐藏筛选，不在此展示） -->
+  <div id="header-row2" class="caps" hidden>
+    <div class="cap-row"><span class="cap-tag">天</span><div id="cap-days" class="cap-list"></div></div>
+    <div class="cap-row"><span class="cap-tag">会话</span><div id="cap-sessions" class="cap-list"></div></div>
+  </div>
+</header>
+
+<!-- 一级页面：主题爆炸图（中心洞察迸发主题节点） -->
+<div id="ai-galaxy" class="ai-galaxy">
+  <div class="galaxy-stage" id="galaxy-stage">
+    <div class="galaxy-core"><span class="galaxy-core-emo"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg></span><span class="galaxy-core-label">洞察</span></div>
+  </div>
+  <div class="galaxy-empty" id="galaxy-empty" hidden>
+    <div class="empty-main">暂无主题</div>
+    <div class="empty-sub">配置好模型后，AI 会自动把日志归类成主题</div>
+  </div>
+</div>
+
+
+<!-- 主题综述卡片（点主题节点弹出） -->
+<div id="topic-card" class="topic-card" hidden>
+  <div class="topic-card-inner">
+    <div class="topic-card-head"><span class="topic-card-dot"></span><span class="topic-card-name" id="topic-card-name"></span>
+      <span class="topic-card-cnt" id="topic-card-cnt"></span>
+      <button class="topic-card-close" id="topic-card-close">✕</button></div>
+    <div class="topic-card-body md" id="topic-card-body"></div>
+    <div class="topic-card-actions"><button class="modal-btn ok" id="topic-card-enter">进入该主题 →</button></div>
+  </div>
+</div>
+
+<!-- 二级页面：主题内泳道 + 详情（复用 viewer 布局），默认隐藏 -->
+<div class="wrap ai-lane" id="ai-lane" hidden>
+  <div class="left" id="left"><div class="stage" id="stage"></div></div>
+  <div class="right" id="detail"><div class="box empty"><svg class="icon" aria-hidden="true"><use href="#i-arrowLeft"></use></svg> 点击左侧节点查看该条日志</div></div>
+</div>
+
+<script src="/static/vendor/mermaid.min.js"
+  onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';s.onload=function(){window.__mermaidReady&&window.__mermaidReady()};document.head.appendChild(s);"></script>
+<script src="/static/vendor/katex/katex.min.js"
+  onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';s.onload=function(){window.__katexReady&&window.__katexReady()};document.head.appendChild(s);"></script>
+
+<script src="/static/frontend/shared/js/utils.js"></script>
+<script src="/static/frontend/shared/js/icons.js"></script>
+<script src="/static/frontend/shared/js/markdown.js"></script>
+<script src="/static/frontend/shared/js/mermaid.js"></script>
+<script src="/static/frontend/shared/js/katex.js"></script>
+<script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/updates.js"></script>
+<script src="/static/frontend/shared/js/header.js"></script>
+<script src="/static/frontend/shared/js/page-nav.js"></script>
+<script src="/static/frontend/viewer/js/aliases.js"></script>
+<script src="/static/frontend/ai/js/ai.js"></script>
+</body>
+</html>

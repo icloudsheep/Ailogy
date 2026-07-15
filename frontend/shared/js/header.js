@@ -1,6 +1,7 @@
 // 公用页头（banner）：所有页面统一使用，含跨页跳转入口（日志/设置/关于）。
 const NAV_LINKS = [
   { key: "viewer",   href: "/",         label: "日志", ic: "waves" },
+  { key: "ai",       href: "/ai",       label: "智能", ic: "sparkles" },
   { key: "settings", href: "/settings", label: "设置", ic: "gear" },
   { key: "about",    href: "/about",    label: "关于", ic: "info" },
 ];
@@ -27,6 +28,9 @@ function renderHeader(current) {
     + row2HTML;
   syncTopbar();
   bindNavTransition();
+  // 全局版本更新检测：给"关于"入口加红点 + 首次 toast 提示（updates.js 定义）。
+  // updates.js 未被引入时静默跳过；引入了就异步执行。
+  if (typeof checkUpdates === "function") checkUpdates();
 }
 
 function bindNavTransition() {

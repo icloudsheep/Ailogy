@@ -196,7 +196,13 @@
   .toast::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 50%;
     background: linear-gradient(to bottom, rgba(255,255,255,.45), transparent); pointer-events: none; }
   .toast > * { position: relative; }
-  .toast .t-title { font-weight: 680; font-size: 15px; margin-bottom: 4px; color: var(--title-color); }
+  .toast .t-title { font-weight: 680; font-size: 15px; margin-bottom: 4px; color: var(--title-color);
+    display: flex; align-items: center; gap: 7px; }
+  /* 无限加载态：标题左侧旋转指示，配合 showToast({loading:true}) 常驻直到手动 dismiss */
+  .toast-spin { width: 14px; height: 14px; flex: none; border-radius: 50%;
+    border: 2px solid color-mix(in srgb, #6ea8fe 30%, transparent); border-top-color: #6ea8fe;
+    animation: toast-spin 0.8s linear infinite; }
+  @keyframes toast-spin { to { transform: rotate(360deg); } }
   .toast .t-body { font-size: 14px; color: var(--dim); line-height: 1.55; overflow-wrap: anywhere; }
   .toast.err .t-title { color: #b4453a; }
   .toast.err { border-color: rgba(255,150,140,.8);
@@ -366,6 +372,17 @@
   .hnav.on { background: var(--lg-bg); border: var(--lg-border); color: var(--txt);
     box-shadow: 0 0 0 1.5px color-mix(in srgb, #6ea8fe 50%, transparent), var(--lg-inset); }
   .hnav .emo { font-size: 14px; }
+  /* 全局版本更新红点：JS 检测到 has_update 时给"关于"入口加 .has-update 类 */
+  .hnav.has-update { position: relative; }
+  .hnav.has-update::after { content: ""; position: absolute; top: 2px; right: 2px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff7a7a, #d63b3b);
+    border: 1.5px solid var(--panel, #fff);
+    box-shadow: 0 0 6px rgba(214,59,59,.7);
+    animation: hnav-dot-blink 1.6s ease-in-out infinite; }
+  @keyframes hnav-dot-blink { 0%,100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.25); opacity: .75; } }
+  html[data-mode="dark"] .hnav.has-update::after { border-color: #12172a; }
   /* 窄屏隐藏导航文字、只留图标 */
   @media (max-width: 640px) { .hnav-label { display: none; } }
 

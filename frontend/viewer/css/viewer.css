@@ -85,6 +85,9 @@ html.tb-ready .update-notice { transition: max-height calc(.42s * var(--anim-k))
   background: transparent; border-color: transparent; box-shadow: none; }
 /* 重命名后的旧名：半透明小字括号，跟在别名之后，供对照原始会话代号 */
 .old-name { margin-left: 4px; font-size: 10.5px; font-weight: 400; opacity: .5; }
+/* AI 主题胶囊：主题名 + 条数徽标（单选切换分类） */
+.topic-cap .topic-cnt { margin-left: 6px; font-size: 10.5px; font-weight: 700; opacity: .6;
+  font-variant-numeric: tabular-nums; }
 /* 会话胶囊：左侧实心点用会话色 + on 态外发光 */
 .sess-cap { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 55%, transparent), var(--lg-inset); }
 .sess-cap.off { box-shadow: inset 0 2px 6px rgba(40,50,90,.25); }

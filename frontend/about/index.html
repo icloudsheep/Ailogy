@@ -11,29 +11,77 @@
     document.documentElement.setAttribute("data-anim", localStorage.getItem("ailogy:anim") || "default");
   } catch (e) {}
 </script>
+<link rel="stylesheet" href="/static/vendor/katex/katex.min.css"
+      onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';">
 <link rel="stylesheet" href="/static/frontend/shared/css/theme.css">
+<link rel="stylesheet" href="/static/frontend/shared/css/markdown.css">
 <link rel="stylesheet" href="/about-assets/about.css">
 </head>
 <body>
 <div class="bg"></div>
+<!-- 全屏烟花画布：脱离简介卡片，做整页背景。z-index 由 CSS 控制。 -->
+<canvas class="fireworks"></canvas>
 <header id="app-header" data-icon="info" data-title="关于 Ailogy"></header>
 <main class="wrap">
+  <!-- 新版本提示条：拉到有 has_update=true 时显示 -->
+  <section class="update-banner" id="update-banner" hidden>
+    <div class="update-banner-inner">
+      <div class="update-banner-icon"><svg class="icon" aria-hidden="true"><use href="#i-rocket"></use></svg></div>
+      <div class="update-banner-text">
+        <div class="update-banner-title">新版本可用：<b id="update-tag">…</b></div>
+        <div class="update-banner-sub" id="update-sub"></div>
+      </div>
+      <button class="update-banner-link" id="update-install-btn" type="button">立即更新</button>
+      <a class="update-banner-link secondary" id="update-link" href="#" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <!-- 安装进度条（点击"立即更新"后展开） -->
+    <div class="update-progress" id="update-progress" hidden>
+      <div class="update-progress-bar"><div class="update-progress-fill" id="update-progress-fill"></div></div>
+      <div class="update-progress-text" id="update-progress-text"></div>
+    </div>
+  </section>
+
+  <!-- 简介卡片 -->
   <section class="box about-box">
-    <canvas class="fireworks"></canvas>
     <div class="about-body">
       <div class="about-logo"><svg class="icon" aria-hidden="true"><use href="#i-waves"></use></svg></div>
       <div class="about-name">Ailogy</div>
-      <div class="about-ver">版本 <b id="ver">…</b></div>
+      <div class="about-ver">
+        <span>当前版本 <b id="ver">…</b></span>
+        <span class="about-ver-sep">·</span>
+        <a class="about-repo" id="repo" href="#" target="_blank" rel="noopener">GitHub 仓库</a>
+      </div>
       <p class="about-desc">AI 工作日志纯后端服务：接收 ai-log 客户端上报，SQLite 存库，
         网页泳道时间线呈现，支持 Markdown / Mermaid / LaTeX 渲染、全文搜索、按设备与月份筛选。零鉴权，面向本地 / 内网单用户自用。</p>
-      <a class="about-repo" id="repo" href="#" target="_blank" rel="noopener">GitHub 仓库</a>
       <div class="about-copy">Copyright © 2026 UniEver Studio. All rights reserved.</div>
     </div>
   </section>
+
+  <!-- 更新日志：从 GitHub Releases 拉取，按时间倒序 -->
+  <section class="box release-box">
+    <div class="release-head">
+      <svg class="icon" aria-hidden="true"><use href="#i-newspaper"></use></svg>
+      <span>更新日志</span>
+      <button class="release-refresh" id="release-refresh" title="刷新">
+        <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>
+      </button>
+    </div>
+    <div class="release-list" id="release-list">
+      <div class="release-loading">正在从 GitHub 拉取更新日志…</div>
+    </div>
+  </section>
 </main>
+<script src="/static/vendor/mermaid.min.js"
+  onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';s.onload=function(){window.__mermaidReady&&window.__mermaidReady()};document.head.appendChild(s);"></script>
+<script src="/static/vendor/katex/katex.min.js"
+  onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';s.onload=function(){window.__katexReady&&window.__katexReady()};document.head.appendChild(s);"></script>
 <script src="/static/frontend/shared/js/utils.js"></script>
 <script src="/static/frontend/shared/js/icons.js"></script>
+<script src="/static/frontend/shared/js/markdown.js"></script>
+<script src="/static/frontend/shared/js/mermaid.js"></script>
+<script src="/static/frontend/shared/js/katex.js"></script>
 <script src="/static/frontend/shared/js/ui.js"></script>
+<script src="/static/frontend/shared/js/updates.js"></script>
 <script src="/static/frontend/shared/js/header.js"></script>
 <script src="/static/frontend/shared/js/page-nav.js"></script>
 <script src="/about-assets/about.js"></script>

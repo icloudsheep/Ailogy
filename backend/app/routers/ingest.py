@@ -38,6 +38,7 @@ async def ingest_entries(request: Request, db: Session = Depends(get_db)):
         repo.upsert_entry(db, e)
         n += 1
     db.commit()
+    _nudge_ai()   # 触发器已把变更入队，催 AI worker 尽快跑一轮（近实时）
     return {"ok": True, "count": n}
 
 
@@ -50,4 +51,14 @@ def ingest_delete(day: str, seq: int, db: Session = Depends(get_db)):
         "DELETE FROM entries WHERE client_id = :cid"
     ), {"cid": client_id})
     db.commit()
+    _nudge_ai()   # 删除触发器已入队 op=delete，催 worker 清理其 insight/embedding
     return {"ok": True, "deleted": r.rowcount}
+
+
+def _nudge_ai():
+    """催促 AI worker 尽快跑一轮（尽力而为，失败不影响上报）。"""
+    try:
+        from .. import ai_worker
+        ai_worker.nudge()
+    except Exception:
+        pass
