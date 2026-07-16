@@ -71,10 +71,38 @@ const _galaxyNodes = {};              // topic -> entry
 let _rafId = 0;
 let _lastFrameTs = 0;
 // 每个主题"上次用户见过的 updated_at"：本轮 API 返回值与之不同 → 主题被更新 → 显示红点。
-// 用 localStorage 持久化，避免刷新页面就丢红点标记。
+// 语义：红点持久到用户在该主题上点击查看为止，跨会话 / 跨设备 / 跨浏览器都保留。
+// 存储：服务端 prefs 为真源（跨端同步），localStorage 作同步镜像缓存供高频 read 使用。
+// 服务端拉取在 initAI 里预热；本处先用缓存兜底，保证首屏无闪。
 const SEEN_KEY = "ailogy:ai:seenTopicUpdatedAt";
 const _seenUpdatedAt = (() => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || "{}"); } catch (_) { return {}; } })();
-function saveSeen() { try { localStorage.setItem(SEEN_KEY, JSON.stringify(_seenUpdatedAt)); } catch (_) {} }
+async function _loadSeenFromServer() {
+  try {
+    const r = await fetch("/api/prefs/" + encodeURIComponent(SEEN_KEY));
+    if (!r.ok) return;
+    const j = await r.json();
+    const v = j && typeof j.value === "string" ? j.value : "";
+    if (!v) return;
+    const obj = JSON.parse(v);
+    if (obj && typeof obj === "object") {
+      // 用服务端值直接覆盖本地缓存（服务端为真源；不做合并——避免"某端把已看过的翻新")
+      Object.keys(_seenUpdatedAt).forEach((k) => delete _seenUpdatedAt[k]);
+      Object.assign(_seenUpdatedAt, obj);
+      try { localStorage.setItem(SEEN_KEY, v); } catch (_) {}
+    }
+  } catch (_) {}
+}
+// 保存：并行写 localStorage（同步生效）+ PUT prefs（跨端）。失败静默——不影响交互。
+function saveSeen() {
+  const v = JSON.stringify(_seenUpdatedAt);
+  try { localStorage.setItem(SEEN_KEY, v); } catch (_) {}
+  try {
+    fetch("/api/prefs/" + encodeURIComponent(SEEN_KEY), {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: v }),
+    });
+  } catch (_) {}
+}
 function updateNodeDot(entry) {
   if (!entry || !entry.node) return;
   const dot = entry.node.querySelector(".gn-dot");
@@ -422,15 +450,21 @@ function renderGalaxy() {
     if (name) name.style.setProperty("--ring-alpha", 1);
     node.querySelector(".gn-emo").textContent = (t.emoji || "").trim() || topicEmoji(t.topic);
     node.querySelector(".gn-count").textContent = String(t.entry_count || 0);
-    // 更新红点：本轮 API 返回的 updated_at 比上一次记录的新 → 显示红点。
-    // 用户点击查看后（openTopicCard），红点消失并把 updated_at 存入 _seenUpdatedAt。
+    // 更新红点：本轮 API 返回的 updated_at 比"上次已见"新 → 显示红点。
+    // 红点持久到用户点击该主题为止（openTopicCard 里消除 + 上报服务端），
+    // 期间刷新页 / 切页 / 换设备均保留。saveSeen 已并发写 localStorage + prefs。
     const upd = t.updated_at || "";
+    entry.__lastUpd = upd;   // 记录最新 updated_at 供 initAI 服务端预热后比对
     if (isNew) {
       // 新主题：首次入场不算"有更新"，直接把当前 updated_at 记为已见
       _seenUpdatedAt[t.topic] = upd;
       saveSeen();
+      entry.__hasUpdate = false;
     } else if (upd && upd !== _seenUpdatedAt[t.topic]) {
       entry.__hasUpdate = true;
+    } else if (upd && upd === _seenUpdatedAt[t.topic]) {
+      // 明确"已见并无新" → 消红点（覆盖上一轮可能残留的状态）
+      entry.__hasUpdate = false;
     }
     updateNodeDot(entry);
     name.textContent = t.topic;
@@ -897,6 +931,20 @@ async function initAI() {
   if (typeof initDebugTag === "function") initDebugTag("front/ai");
   try { const dr = await AI.devices(); ST.devices = dr.devices || []; } catch (_) {}
   updateDeviceLabel();
+  // 服务端 prefs 预热"已见"红点状态（跨设备/浏览器同步）；拉到后即刻刷新已渲染节点
+  _loadSeenFromServer().then(() => {
+    Object.values(_galaxyNodes).forEach((entry) => {
+      if (!entry || !entry.node) return;
+      const topic = entry.node.dataset && entry.node.dataset.topic;
+      if (!topic) return;
+      // 服务端"已见"状态覆盖后：若当前主题最新 updated_at == 已见 → 消红点；否则保持
+      // 这里用 __lastUpd（在 renderGalaxy 里赋值）比对；未记则不动
+      if (entry.__lastUpd && entry.__lastUpd === _seenUpdatedAt[topic]) {
+        entry.__hasUpdate = false;
+        updateNodeDot(entry);
+      }
+    });
+  });
   // 监听 stage 尺寸：首帧拿到真实尺寸后补一次布局；后续窗口缩放也自动重排。
   // 一级页面才需要，二级页面（hidden）不会触发 observer。
   const stage = $("galaxy-stage");
@@ -986,18 +1034,54 @@ function schedulePulseCoreColor() {
   requestAnimationFrame(tick);
 }
 
-// 5s 轮询 /worker/status，把 busy 反映到中心「洞察」核上（.core-busy 类）。
+// 1s 轮询 /worker/status：
+// - busy 时给洞察核加 .core-busy 播放脉动波纹
+// - 展示 loading toast 显示当前阶段/进度/token 累计（让用户即使不在设置页也能看到 AI 在做什么）
+// - phase 变化 / current 变化时更新 toast 内文，token 每秒刷新
+// - 空闲 → toast 收尾展示"本轮完成 · 累计 token"，1.5s 后自动消失
+const _PHASE_LABEL = { embed: "向量化", classify: "分类", summarize: "主题综述", delete: "清理", starting: "启动", idle: "空闲" };
+let _aiToast = null, _lastPhase = "", _lastCurrent = "";
 async function pollWorkerBusy() {
   const core = document.querySelector(".galaxy-core");
   const tick = async () => {
-    try {
-      const s = await AI.workerStatus();
-      const busy = !!(s && s.busy);
-      if (core) core.classList.toggle("core-busy", busy);
-    } catch (_) { /* 静默：网络抖动不影响主流程 */ }
+    let s;
+    try { s = await AI.workerStatus(); } catch (_) { return; }
+    const status = (s && s.status) || s || {};
+    const busy = !!status.busy;
+    if (core) core.classList.toggle("core-busy", busy);
+
+    // toast：忙时常驻、更新；空闲时收尾
+    if (busy) {
+      const phase = _PHASE_LABEL[status.phase] || status.phase || "处理中";
+      const cur = status.current || "";
+      const tin = typeof fmtTok === "function" ? fmtTok(status.tokens_in || 0) : (status.tokens_in || 0);
+      const tout = typeof fmtTok === "function" ? fmtTok(status.tokens_out || 0) : (status.tokens_out || 0);
+      const pct = status.total ? ` ${status.done || 0}/${status.total}` : "";
+      const bodyParts = [`${phase}${pct}`];
+      if (cur) bodyParts.push(`当前：${cur}`);
+      bodyParts.push(`累计 ↑${tin} ↓${tout} token`);
+      const body = bodyParts.join(" · ");
+      const title = `AI 处理中 · ${phase}`;
+      if (!_aiToast || _aiToast._dismissed) {
+        _aiToast = showToast(body, { title, loading: true });
+      } else if (phase !== _lastPhase || cur !== _lastCurrent) {
+        // phase / current 变化 → 更新标题让用户注意到阶段切换
+        _aiToast.update(body, title);
+      } else {
+        // 只是 token 增加：只更新 body、不动 title（避免闪烁）
+        _aiToast.update(body);
+      }
+      _lastPhase = phase; _lastCurrent = cur;
+    } else if (_aiToast && !_aiToast._dismissed) {
+      const tin = typeof fmtTok === "function" ? fmtTok(status.tokens_in || 0) : (status.tokens_in || 0);
+      const tout = typeof fmtTok === "function" ? fmtTok(status.tokens_out || 0) : (status.tokens_out || 0);
+      _aiToast.update(`本轮完成 · 累计 ↑${tin} ↓${tout} token`, "AI 处理完成");
+      setTimeout(() => { if (_aiToast) _aiToast.dismiss(); _aiToast = null; }, 1500);
+      _lastPhase = ""; _lastCurrent = "";
+    }
   };
   tick();
-  setInterval(tick, 5000);
+  setInterval(tick, 1000);   // 1 秒粒度：token 变化能看到；比 5s 感知强很多
 }
 // ══════════════════ 左上"提问"按钮：RAG 问答 ══════════════════
 // 交互流程：

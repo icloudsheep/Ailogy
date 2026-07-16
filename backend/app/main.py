@@ -114,8 +114,12 @@ def version():
 
 # GitHub releases 代理：避开浏览器 CORS + 复用后端 IP 的 60 次/小时无鉴权额度。
 # 简单内存缓存 15 分钟，减少 API 调用；离线/失败时返回 stale=True 供前端友好展示。
+# Release 列表缓存：15 分钟太长——刚发布新 release 想立即在服务器看到需要等，
+# 60 秒足以扛住前端反复轮询（updates.js 每次 renderHeader 都会 fetch 一次），
+# 又不至于让 GitHub API 感受到压力（authenticated=5000 req/h、匿名=60 req/h，
+# 每分钟 1 次远低于阈值）。
 _RELEASE_CACHE = {"ts": 0, "data": None, "err": None}
-_RELEASE_TTL_S = 900
+_RELEASE_TTL_S = 60
 
 
 # 自动更新偏好键 & 默认值
@@ -147,7 +151,7 @@ def updates():
     - has_update 判据：本地版本字符串是否等于 latest.tag（去 v 前缀比对）
     """
     import time as _t
-    import httpx as _httpx
+    from . import net as _net
     from .settings import VERSION, REPO  # noqa: E402
 
     now = _t.time()
@@ -159,7 +163,7 @@ def updates():
         url = f"https://api.github.com/repos/{repo_slug}/releases?per_page=10"
         headers = {"Accept": "application/vnd.github+json", "User-Agent": "Ailogy"}
         try:
-            r = _httpx.get(url, headers=headers, timeout=6.0, follow_redirects=True)
+            r = _net.get(url, purpose="github", headers=headers, timeout=6.0, follow_redirects=True)
             if r.status_code == 200:
                 releases = []
                 for it in (r.json() or []):
@@ -250,6 +254,47 @@ def updates_install(body: dict = Body(default={})):
 def updates_status():
     from . import updater
     return updater.get_state()
+
+
+# ═════════ 代理配置：读/写 + 联通性测试 ═════════
+# 两通道独立配置：model（LLM 出站）/ github（Release 检查 & 下载）。
+# 未配置时保持 trust_env=True 的老行为，兼容既有 systemd 环境变量部署。
+
+@app.get("/api/proxy/config")
+def proxy_config_get():
+    from . import net
+    from .db import SessionLocal
+    db = SessionLocal()
+    try:
+        return net.get_config_masked(db)
+    finally:
+        db.close()
+
+
+@app.put("/api/proxy/config")
+def proxy_config_put(body: dict = Body(...)):
+    from . import net
+    from .db import SessionLocal
+    db = SessionLocal()
+    try:
+        return net.save_config(db, body or {})
+    finally:
+        db.close()
+
+
+@app.post("/api/proxy/test")
+def proxy_test(body: dict = Body(default={})):
+    """探测 generate_204。body: {purpose: "model" | "github"}（默认两个都跑）。
+    返回 {model: {...}, github: {...}}。"""
+    from . import net
+    from .db import SessionLocal
+    purpose = (body.get("purpose") or "").strip()
+    which = [purpose] if purpose in ("model", "github") else ["model", "github"]
+    db = SessionLocal()
+    try:
+        return {p: net.probe(db, p) for p in which}
+    finally:
+        db.close()
 
 
 # viewer 的 css/js 相对路径

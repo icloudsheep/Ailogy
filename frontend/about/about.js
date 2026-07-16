@@ -43,8 +43,15 @@ async function refreshReleases(force) {
     const installBtn = document.getElementById("update-install-btn");
     installBtn.dataset.tag = latest.tag || "";
     installBtn.onclick = () => startInstall(latest.tag);
-    // 标记为"已见"（下次不再 toast）
-    try { localStorage.setItem("ailogy:seenLatestTag", latest.tag || ""); } catch (_) {}
+    // 标记为"已见"：写本地缓存 + PUT 服务端 prefs（跨设备同步，下次任何端都不再 toast）
+    const _tag = latest.tag || "";
+    try { localStorage.setItem("ailogy:seenLatestTag", _tag); } catch (_) {}
+    try {
+      fetch("/api/prefs/" + encodeURIComponent("ailogy:seenLatestTag"), {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: _tag }),
+      });
+    } catch (_) {}
   } else {
     banner.hidden = true;
   }

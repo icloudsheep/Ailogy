@@ -17,10 +17,16 @@ Base = declarative_base()
 
 @event.listens_for(engine, "connect")
 def _sqlite_pragma(dbapi_conn, _record):
+    # WAL：读写不再互相阻塞（读方永远能读，写方不阻塞读）；busy_timeout 让被别的连接
+    # 持锁时等待而不是立即抛 database is locked。之前 5000ms 在 AI worker 全量重跑（几十条
+    # LLM 调用共用一段事务）时不够——用户点"测试连接" / PUT config 会被挤掉抛 500。
+    # 30000ms 给足了整批 worker 完成的窗口；对交互延迟影响可忽略（正常读写<10ms）。
+    # synchronous=NORMAL：本地个人使用 + WAL 场景推荐值，比 FULL 快约 3–5×，仍安全。
     cur = dbapi_conn.cursor()
     cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA synchronous=NORMAL")
     cur.execute("PRAGMA foreign_keys=ON")
-    cur.execute("PRAGMA busy_timeout=5000")
+    cur.execute("PRAGMA busy_timeout=30000")
     cur.close()
 
 

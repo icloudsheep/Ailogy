@@ -1,7 +1,28 @@
 // 设置页：主题/模式选择（复用 ui.js 的 setStyle/setMode），高亮当前项。
-// 另含泳道页偏好：自动隐藏灰态会话（写 localStorage，viewer 页读取生效）。
+// 另含泳道页偏好：自动隐藏灰态会话——服务端 prefs 为真源（跨设备/清缓存不丢），
+// localStorage 作同步镜像缓存，让 viewer 里的 `autoHideGrey()` 保持同步调用不改。
 const HIDE_GREY_KEY = "ailogy:hideGrey";
+// 从服务端拉取初始状态覆盖本地缓存（拉不到就沿用 localStorage 上一次值）
+async function _loadHideGreyFromServer() {
+  try {
+    const r = await fetch("/api/prefs/" + encodeURIComponent(HIDE_GREY_KEY));
+    if (!r.ok) return;
+    const j = await r.json();
+    const v = j && typeof j.value === "string" ? j.value : "";
+    localStorage.setItem(HIDE_GREY_KEY, v === "1" ? "1" : "0");
+  } catch (_) {}
+}
 function _hideGrey() { try { return localStorage.getItem(HIDE_GREY_KEY) === "1"; } catch (_) { return false; } }
+async function _saveHideGrey(on) {
+  const v = on ? "1" : "0";
+  try { localStorage.setItem(HIDE_GREY_KEY, v); } catch (_) {}
+  try {
+    await fetch("/api/prefs/" + encodeURIComponent(HIDE_GREY_KEY), {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: v }),
+    });
+  } catch (_) {}
+}
 function _sync() {
   document.querySelectorAll("#style-row .opt").forEach((b) =>
     b.classList.toggle("on", b.dataset.style === curStyle()));
@@ -20,10 +41,13 @@ document.querySelectorAll("#anim-row .opt").forEach((b) =>
   b.onclick = () => { setAnim(b.dataset.anim); _sync(); });
 const _hg = document.getElementById("opt-hide-grey");
 if (_hg) _hg.onclick = () => {
-  try { localStorage.setItem(HIDE_GREY_KEY, _hideGrey() ? "0" : "1"); } catch (_) {}
+  const next = !_hideGrey();
+  _saveHideGrey(next);   // 并行：localStorage 本地即时反映 + 后端 PUT 落库
   _sync();
 };
+// 先按本地缓存渲染，再异步用服务端值覆盖（避免闪一下）
 _sync();
+_loadHideGreyFromServer().then(_sync);
 renderHeader("settings");
 bindGlobalMenu();
 initDebugTag("front/settings");
@@ -158,6 +182,9 @@ document.querySelectorAll(".ai-reset").forEach((btn) => {
 loadAIConfig();
 
 // ── iPad 式主从导航：左侧大类切换右侧面板；选中项固化到 localStorage，刷新保持 ──
+// 注意：showCat 需要在切到「关于」时触发 loadUpdatesTab（拉后端设置回填 UI）；
+// loadUpdatesTab 定义在下方靠后位置，且初次进入若上次记住的就是 about 也要能拉。
+// 因此这里让 showCat 直接调用（用 typeof 兜底避免声明先后依赖）。
 const CAT_KEY = "ailogy:settingsCat";
 function showCat(cat) {
   document.querySelectorAll("#settings-nav .snav").forEach((b) =>
@@ -165,6 +192,9 @@ function showCat(cat) {
   document.querySelectorAll(".settings-panel").forEach((p) =>
     p.classList.toggle("on", p.dataset.cat === cat));
   try { localStorage.setItem(CAT_KEY, cat); } catch (_) {}
+  // 各懒加载 tab 的进入钩子（loadXxx 定义在后方；typeof 兜底避免早于声明）
+  if (cat === "about" && typeof loadUpdatesTab === "function") loadUpdatesTab();
+  if (cat === "proxy" && typeof loadProxyTab === "function") loadProxyTab();
 }
 document.querySelectorAll("#settings-nav .snav").forEach((b) =>
   b.onclick = () => showCat(b.dataset.cat));
@@ -400,9 +430,118 @@ function pollUpdInstall() {
   tick();
 }
 
-// 切到"关于"分类时自动加载
-const _origShowCat = showCat;
-showCat = function (cat) {
-  _origShowCat(cat);
-  if (cat === "about") loadUpdatesTab();
+// 已在文件上方 showCat 中处理「切到 about → loadUpdatesTab」；此处无需再包装。
+// 兼容既有上次会话记住的分类 = about 的场景：脚本尾部再兜底触发一次（避免时序上
+// showCat 首次执行时 loadUpdatesTab 尚未定义就跳过了）。
+try {
+  const _cat = localStorage.getItem(CAT_KEY);
+  if (_cat === "about" && typeof loadUpdatesTab === "function") loadUpdatesTab();
+} catch (_) {}
+
+// ═════════ 代理（两通道：model / github）═════════
+// 存储与探测都在服务端；密码回显脱敏。密码留空 = 不修改。
+const PxAPI = {
+  get: () => fetch("/api/proxy/config").then((r) => r.json()),
+  put: (patch) => fetch("/api/proxy/config", {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  }).then((r) => r.json()),
+  test: (purpose) => fetch("/api/proxy/test", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(purpose ? { purpose } : {}),
+  }).then((r) => r.json()),
 };
+
+// 一张卡片对应一个 purpose；卡片内 4 个控件按 class 定位，避免 id 冲突
+function _pxCard(purpose) { return document.querySelector(`.ai-card[data-purpose="${purpose}"]`); }
+function _pxRead(purpose) {
+  const c = _pxCard(purpose);
+  if (!c) return null;
+  return {
+    enabled: c.querySelector(".px-enabled").checked,
+    url: c.querySelector(".px-url").value.trim(),
+    user: c.querySelector(".px-user").value.trim(),
+    // 用户没输入 → 空串 → 后端保留原值；用户输了 → 覆盖
+    pass: c.querySelector(".px-pass").value,
+  };
+}
+function _pxFill(purpose, data) {
+  const c = _pxCard(purpose);
+  if (!c || !data) return;
+  c.querySelector(".px-enabled").checked = !!data.enabled;
+  c.querySelector(".px-url").value = data.url || "";
+  c.querySelector(".px-user").value = data.user || "";
+  const p = c.querySelector(".px-pass");
+  p.value = "";  // 密码框永不回填脱敏值（避免误保存掩码）
+  p.placeholder = data.has_pass ? `已配置（${data.pass}）· 留空表示不修改` : "可选（留空表示不修改）";
+}
+
+async function loadProxyTab() {
+  try {
+    const cfg = await PxAPI.get();
+    _pxFill("model", cfg.model);
+    _pxFill("github", cfg.github);
+  } catch (_) {}
+}
+
+function _pxLine(tag, msg) {
+  const body = _q("px-console-body"); if (!body) return;
+  const prefix = { cmd: "$ ", ok: "✓ ", err: "✗ ", info: "", dim: "  ", done: "» " }[tag] || "";
+  const el = document.createElement("span");
+  el.className = "cl cl-" + tag;
+  el.textContent = prefix + msg + "\n";
+  body.appendChild(el);
+  body.scrollTop = body.scrollHeight;
+}
+function _pxConsoleReset() {
+  const box = _q("px-console"), body = _q("px-console-body");
+  if (body) body.innerHTML = "";
+  if (box) box.classList.add("open");
+}
+if (_q("px-console-close")) _q("px-console-close").onclick = () => { _q("px-console").classList.remove("open"); };
+
+if (_q("px-save")) _q("px-save").onclick = async () => {
+  const patch = { model: _pxRead("model"), github: _pxRead("github") };
+  try {
+    const cfg = await PxAPI.put(patch);
+    _pxFill("model", cfg.model);
+    _pxFill("github", cfg.github);
+    showToast("已保存代理配置", { type: "ok", title: "代理" });
+  } catch (err) {
+    showToast("保存失败：" + err.message, { type: "err" });
+  }
+};
+
+if (_q("px-test")) _q("px-test").onclick = async () => {
+  const st = _q("px-status");
+  const btn = _q("px-test");
+  st.textContent = ""; st.className = "ai-status";
+  btn.disabled = true;
+  _pxConsoleReset();
+  _pxLine("dim", "正在探测 https://www.google.com/generate_204 …");
+  try {
+    const r = await PxAPI.test();
+    // 每个通道打两行：请求路径 + 结果
+    for (const p of ["model", "github"]) {
+      const label = p === "model" ? "模型代理" : "GitHub 代理";
+      const info = r[p] || {};
+      _pxLine("info", `── ${label} ──`);
+      _pxLine("cmd", `GET generate_204  via ${info.via || "(未知)"}`);
+      if (info.ok) _pxLine("ok", `HTTP ${info.status} · ${info.ms}ms · 联通`);
+      else         _pxLine("err", `${info.ms}ms · ${info.error || "失败"}`);
+    }
+    const okAll = (r.model && r.model.ok) && (r.github && r.github.ok);
+    _pxLine("done", okAll ? "全部通道联通 ✓" : "存在不通的通道 ✗");
+    st.textContent = okAll ? "全部联通 ✓" : "存在失败 ✗";
+    st.classList.add(okAll ? "ok" : "err");
+  } catch (err) {
+    _pxLine("err", "请求失败：" + err.message);
+    st.textContent = "测试失败"; st.classList.add("err");
+  } finally { btn.disabled = false; }
+};
+
+// 切到"代理"分类时自动加载配置——已在文件上方 showCat 中处理。
+// 兼容上次记住的分类 = proxy 场景：脚本尾部兜底触发一次（loadProxyTab 定义先于此）。
+try {
+  if (localStorage.getItem(CAT_KEY) === "proxy") loadProxyTab();
+} catch (_) {}

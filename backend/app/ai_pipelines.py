@@ -49,6 +49,8 @@ def process_embed(db, client_id):
         if existing == text_snippet:
             return  # 模型与文本都没变，无需重嵌
 
+    # 与 process_insight 同理：embed 调用可能 30+ 秒，提前 commit 释放读锁
+    db.commit()
     r = ai_client.embed(base, key, model, [text_snippet], timeout=60.0)
     if not r.get("ok"):
         raise RuntimeError(f"embed 失败 HTTP {r.get('status')}: {r.get('error')}")
@@ -98,6 +100,10 @@ def process_insight(db, client_id):
         "emoji 要求：单个 Unicode emoji 字符，语义贴合该主题（不是随便挑一个），"
         "从直觉可判断主题类别；若复用已有主题名，emoji 也可留空、由后端沿用旧值。"
     )
+    # 关键：LLM 调用（30~60s）期间不持事务。之前隐式只读事务会把整个 chat_json 期间的
+    # 其他写请求（前端 PUT config/prefs 等）逼到 busy_timeout 抛 "database is locked" 500。
+    # 这里在 chat_json 前 commit 一次释放读锁，等 LLM 返回后再开新事务写入。
+    db.commit()
     r = ai_client.chat_json(base, key, model, [
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user},
@@ -170,11 +176,16 @@ def resummarize_pending(db, extra_topics=None):
     if not pending:
         return
     sys_prompt = prompts.get("summarize") or ai_config.DEFAULT_PROMPTS["summarize"]
-    for topic in pending:
+    topics_list = list(pending)
+    total = len(topics_list)
+    for idx, topic in enumerate(topics_list, 1):
         cnt = repo.topic_entry_count(db, topic)
         if cnt == 0:
             repo.delete_topic(db, topic)   # 空主题清理
             continue
+        # 每个主题综述前打日志，前端 toast 能看到"综述 3/5 · 「Bug修复」"
+        ai_status.set_phase("summarize", topic)
+        ai_status.log("info", f"→ 综述 {idx}/{total}：「{topic}」（{cnt} 条日志）")
         rows = repo.topic_texts(db, topic, limit=200)
         # 拼汇总输入：逐条「时间 · 标题：正文」，超长截断，避免一条正文撑爆上下文
         parts = []
@@ -187,6 +198,8 @@ def resummarize_pending(db, extra_topics=None):
             f"请站在更高、更全的视角，把它们汇总成一段该主题的综述"
             f"（说清这个主题在做什么、进展脉络、关键成果，不要逐条罗列）：\n\n{joined}"
         )
+        # 综述 LLM 调用最长可达 90s，释放读锁避免阻塞并发写
+        db.commit()
         r = ai_client.chat_complete(base, key, model, [
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": user},

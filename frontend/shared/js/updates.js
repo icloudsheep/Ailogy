@@ -4,7 +4,36 @@
 // 各页面公用，只需要引入这个 js（header.js 里在 renderHeader 后自动调用）。
 
 (function () {
+  // 已见的 latest tag：跨设备/浏览器共享（服务端 prefs 为真源，localStorage 作同步缓存）。
+  // 场景：设备 A 已在关于页看过 tag=X 的说明；设备 B 打开时不应再弹"新版本 X"toast。
   const SEEN_KEY = "ailogy:seenLatestTag";
+
+  async function _fetchSeen() {
+    // 先本地缓存兜底，再拉服务端覆盖
+    let seen = "";
+    try { seen = localStorage.getItem(SEEN_KEY) || ""; } catch (_) {}
+    try {
+      const r = await fetch("/api/prefs/" + encodeURIComponent(SEEN_KEY));
+      if (r.ok) {
+        const j = await r.json();
+        const v = j && typeof j.value === "string" ? j.value : "";
+        if (v) {
+          seen = v;
+          try { localStorage.setItem(SEEN_KEY, v); } catch (_) {}
+        }
+      }
+    } catch (_) {}
+    return seen;
+  }
+  function _markSeen(tag) {
+    try { localStorage.setItem(SEEN_KEY, tag); } catch (_) {}
+    try {
+      fetch("/api/prefs/" + encodeURIComponent(SEEN_KEY), {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: tag }),
+      });
+    } catch (_) {}
+  }
 
   window.checkUpdates = async function () {
     let data;
@@ -30,12 +59,12 @@
       setTimeout(tag, 500);
     }
 
-    // 新版本 toast：只在本地存的 seenTag 与当前 latestTag 不同时提示一次
-    let seen = ""; try { seen = localStorage.getItem(SEEN_KEY) || ""; } catch (_) {}
+    // 新版本 toast：只在服务端记录的 seen 与当前 latest 不同时提示一次
+    const seen = await _fetchSeen();
     if (hasUpd && latestTag && latestTag !== seen && typeof showToast === "function") {
       showToast(`新版本 ${latestTag} 可用`, { type: "ok", title: "🆕 更新" });
-      // 一旦显示过就记下（用户到 about 页看过更新日志会再次覆盖记录）
-      try { localStorage.setItem(SEEN_KEY, latestTag); } catch (_) {}
+      // 一旦显示过就记下——写 prefs 让其他设备也不再重复弹
+      _markSeen(latestTag);
     }
   };
 })();

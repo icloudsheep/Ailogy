@@ -378,9 +378,22 @@ function renderEmpty() {
 // 动画用 FLIP（First-Last-Invert-Play）：布局塌缩瞬时完成，位移改由 transform 补间——
 // CSS 过渡无法动画 flex 换行（3 行↔2 行），只有 FLIP 能让胶囊跨行平滑滑动、消除闪烁。
 let _sessCollapsed = false;
-// 「自动隐藏灰态会话」偏好（设置页开关，localStorage 固化）：灰态=当前无可显示天的会话。
+// 「自动隐藏灰态会话」偏好：服务端 prefs 为真源（跨设备/清缓存保留），localStorage
+// 为同步镜像缓存——本函数被 sessCapFolded/refreshCapFold 高频调用，必须同步，
+// 因此在 initViewer 里先异步 fetch 一次覆盖缓存，之后此函数纯读缓存即可。
 const HIDE_GREY_KEY = "ailogy:hideGrey";
 function autoHideGrey() { try { return localStorage.getItem(HIDE_GREY_KEY) === "1"; } catch (_) { return false; } }
+async function _preloadHideGrey() {
+  try {
+    const r = await fetch("/api/prefs/" + encodeURIComponent(HIDE_GREY_KEY));
+    if (!r.ok) return false;
+    const j = await r.json();
+    const v = j && typeof j.value === "string" ? j.value : "";
+    const before = localStorage.getItem(HIDE_GREY_KEY) || "";
+    localStorage.setItem(HIDE_GREY_KEY, v === "1" ? "1" : "0");
+    return before !== (v === "1" ? "1" : "0");   // 缓存有变更 → 调用方需 refreshCapFold
+  } catch (_) { return false; }
+}
 // 某会话胶囊是否应被折叠隐藏：折叠态下藏所有「非显示中」；或开了自动隐藏灰态时藏灰态。
 function sessCapFolded(code) {
   const grey = !sessAppearsInVisibleDays(code);
@@ -1391,6 +1404,9 @@ async function initViewer() {
     const dr = await API.devices();
     ST.devices = dr.devices || [];
   } catch (_) {}
+  // 服务端 prefs 预热：拉一次「自动隐藏灰态」到本地缓存；即时同步同源多标签
+  // storage 事件已在下方绑定，跨设备靠这里的启动预热落地。
+  _preloadHideGrey().then((changed) => { if (changed) refreshCapFold(); });
   // 恢复视图：URL 查询参数优先（刷新/分享复原，不落库），其次 localStorage 上次视图，默认最近30天
   _urlState = readUrl();
   const v = _urlState || loadSavedView();

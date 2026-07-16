@@ -136,6 +136,7 @@ def _process_once():
                 # upsert：两条流水线各自按标志推进、互不拖累
                 if r["need_embed"] and embed_ready and P:
                     S.set_phase("embed", cid)
+                    S.log("info", f"→ 向量化 {cid}")   # 开始前先打提示，用户能看到"卡在哪一条"
                     P.process_embed(db, cid)
                     _clear_flag(db, cid, "need_embed")
                 topic = None
@@ -147,6 +148,7 @@ def _process_once():
                         _clear_flag(db, cid, "need_insight")   # 跳过重分类，直接清标志
                     else:
                         S.set_phase("classify", cid)
+                        S.log("info", f"→ 分类 {cid}（LLM 调用中…）")
                         topic = P.process_insight(db, cid)
                         _clear_flag(db, cid, "need_insight")
                     if topic:
@@ -165,6 +167,8 @@ def _process_once():
         if P and chat_ready:
             try:
                 S.set_phase("summarize", "")
+                if affected_topics:
+                    S.log("info", f"→ 综述阶段：本批影响 {len(affected_topics)} 个主题")
                 P.resummarize_pending(db, extra_topics=affected_topics)
                 db.commit()
             except Exception as e:

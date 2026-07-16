@@ -24,6 +24,7 @@
     <button class="snav on" data-cat="style"><svg class="icon" aria-hidden="true"><use href="#i-glass"></use></svg> <span>样式</span></button>
     <button class="snav" data-cat="viewer"><svg class="icon" aria-hidden="true"><use href="#i-waves"></use></svg> <span>日志</span></button>
     <button class="snav" data-cat="ai"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg> <span>智能</span></button>
+    <button class="snav" data-cat="proxy"><svg class="icon" aria-hidden="true"><use href="#i-plug"></use></svg> <span>代理</span></button>
     <button class="snav" data-cat="about"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg> <span>关于</span></button>
   </nav>
 
@@ -226,6 +227,55 @@
             <button class="modal-btn" id="ai-reset-emb">重置向量库</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 代理：两通道独立（模型出站 / GitHub 更新与 Release 检查）+ 联通测试（探测 Google generate_204）-->
+    <div class="wrap settings-panel" data-cat="proxy">
+      <div class="ai-card" data-purpose="model">
+        <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg> 模型代理
+          <label class="upd-switch" style="margin-left:auto"><input type="checkbox" class="px-enabled" /><span class="upd-switch-slider"></span></label>
+          <span class="bt-info" tabindex="0" data-tip="控制对话 / 向量 / 提问 SSE 等所有出站 LLM 请求是否走代理。开启且填了 URL → 走该代理；关闭或 URL 为空 → 沿用系统环境变量（HTTP_PROXY / HTTPS_PROXY / NO_PROXY）兜底。">
+            <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></span>
+        </div>
+        <div class="ai-row"><span class="ai-k">代理 URL</span>
+          <input class="ai-flat px-url" type="text" placeholder="http://host:port（http/https/socks5 均可）" spellcheck="false" /></div>
+        <div class="ai-row"><span class="ai-k">账户</span>
+          <input class="ai-flat px-user" type="text" placeholder="可选" spellcheck="false" autocomplete="off" /></div>
+        <div class="ai-row"><span class="ai-k">密码</span>
+          <input class="ai-flat px-pass" type="password" placeholder="可选（留空表示不修改）" spellcheck="false" autocomplete="off" /></div>
+      </div>
+
+      <div class="ai-card" data-purpose="github">
+        <div class="ai-card-title"><svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg> GitHub 代理
+          <label class="upd-switch" style="margin-left:auto"><input type="checkbox" class="px-enabled" /><span class="upd-switch-slider"></span></label>
+          <span class="bt-info" tabindex="0" data-tip="控制 Release 检查 / 自动更新下载是否走代理。与模型代理相互独立——常见场景：内网 LLM 不走代理、GitHub 走代理。未开启时沿用系统环境变量兜底。">
+            <svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></span>
+        </div>
+        <div class="ai-row"><span class="ai-k">代理 URL</span>
+          <input class="ai-flat px-url" type="text" placeholder="http://host:port（http/https/socks5 均可）" spellcheck="false" /></div>
+        <div class="ai-row"><span class="ai-k">账户</span>
+          <input class="ai-flat px-user" type="text" placeholder="可选" spellcheck="false" autocomplete="off" /></div>
+        <div class="ai-row"><span class="ai-k">密码</span>
+          <input class="ai-flat px-pass" type="password" placeholder="可选（留空表示不修改）" spellcheck="false" autocomplete="off" /></div>
+      </div>
+
+      <!-- 连接测试输出（复用 ai-console 磨砂玻璃终端样式） -->
+      <div class="ai-console" id="px-console">
+        <div class="ai-console-inner">
+          <div class="ai-console-bar">
+            <span class="ai-console-dots"><i></i><i></i><i></i></span>
+            <span class="ai-console-title">代理联通测试 · google.com/generate_204</span>
+            <button class="ai-console-close" id="px-console-close" title="关闭">✕</button>
+          </div>
+          <pre class="ai-console-body" id="px-console-body"></pre>
+        </div>
+      </div>
+
+      <div class="ai-actions">
+        <button class="modal-btn ok" id="px-save">保存代理配置</button>
+        <button class="modal-btn" id="px-test"><svg class="icon" aria-hidden="true"><use href="#i-plug"></use></svg> 联通测试</button>
+        <span id="px-status" class="ai-status"></span>
       </div>
     </div>
 

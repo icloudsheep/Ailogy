@@ -130,6 +130,13 @@ def get_prefs(db: Session = Depends(get_db)):
     return repo.all_prefs(db)
 
 
+@router.get("/prefs/{key}")
+def get_pref(key: str, db: Session = Depends(get_db)):
+    """读单个 pref。缺失返回 value=""（不 404，简化前端）。"""
+    v = repo.get_pref(db, key)
+    return {"key": key, "value": v if v is not None else ""}
+
+
 @router.put("/prefs/{key}")
 def put_pref(key: str, req: PrefReq, db: Session = Depends(get_db)):
     repo.set_pref(db, key, req.value)

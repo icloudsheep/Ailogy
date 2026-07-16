@@ -21,7 +21,7 @@ import threading
 import time
 import zipfile
 
-import httpx
+from . import net
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _STAGING = os.path.join(_REPO_ROOT, ".update_staging")
@@ -124,7 +124,7 @@ def _download(url):
     """带进度回调 & 大小上限的下载。返回 bytes 或 None（失败）。"""
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "Ailogy-Updater"}
     try:
-        with httpx.stream("GET", url, headers=headers, timeout=_TIMEOUT, follow_redirects=True) as r:
+        with net.stream("GET", url, purpose="github", headers=headers, timeout=_TIMEOUT, follow_redirects=True) as r:
             if r.status_code >= 400:
                 _set(phase="error", error=f"下载失败 HTTP {r.status_code}")
                 return None

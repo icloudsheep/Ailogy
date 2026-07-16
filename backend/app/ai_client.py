@@ -5,7 +5,7 @@
 """
 import time
 
-import httpx
+from . import net
 
 
 def _join(base_url: str, path: str) -> str:
@@ -24,7 +24,7 @@ def chat_complete(base_url, api_key, model, messages, timeout=30.0, max_tokens=N
         payload["max_tokens"] = max_tokens
     t0 = time.time()
     try:
-        r = httpx.post(url, headers=headers, json=payload, timeout=timeout)
+        r = net.post(url, purpose="model", headers=headers, json=payload, timeout=timeout)
         ms = int((time.time() - t0) * 1000)
         if r.status_code >= 400:
             return {"ok": False, "status": r.status_code, "error": _short(r.text), "ms": ms}
@@ -56,7 +56,7 @@ def chat_json(base_url, api_key, model, messages, timeout=30.0):
         payload = {"model": model, "messages": messages, "temperature": 0}
         if with_format:
             payload["response_format"] = {"type": "json_object"}
-        return httpx.post(url, headers=headers, json=payload, timeout=timeout)
+        return net.post(url, purpose="model", headers=headers, json=payload, timeout=timeout)
 
     try:
         r = _try(True)
@@ -106,7 +106,7 @@ def chat_stream(base_url, api_key, model, messages, timeout=180.0):
         headers["Authorization"] = f"Bearer {api_key}"
     payload = {"model": model, "messages": messages, "stream": True}
     try:
-        with httpx.stream("POST", url, headers=headers, json=payload, timeout=timeout) as r:
+        with net.stream("POST", url, purpose="model", headers=headers, json=payload, timeout=timeout) as r:
             if r.status_code >= 400:
                 yield {"__error__": f"HTTP {r.status_code}: {_short(r.read().decode('utf-8', 'ignore'))}"}
                 return
@@ -151,7 +151,7 @@ def embed(base_url, api_key, model, texts, timeout=30.0):
     payload = {"model": model, "input": texts}
     t0 = time.time()
     try:
-        r = httpx.post(url, headers=headers, json=payload, timeout=timeout)
+        r = net.post(url, purpose="model", headers=headers, json=payload, timeout=timeout)
         ms = int((time.time() - t0) * 1000)
         if r.status_code >= 400:
             return {"ok": False, "status": r.status_code, "error": _short(r.text), "ms": ms}
