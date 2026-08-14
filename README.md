@@ -4,6 +4,10 @@
 
 AI 工作日志**纯后端服务**：接收上报 → SQLite 存库 → 网页瀑布流查看，**纯个人使用，零鉴权**。
 
+<p align="center">
+  <img src="static/ailogy-overview.png" alt="Ailogy 日志汇聚与时间线概念图" width="560">
+</p>
+
 > 本项目脱胎于 [claude-skills 的 ai-log skill](https://github.com/icloudsheep/claude-skills)。**职责已彻底拆分**：
 > - **[ai-log skill](https://github.com/icloudsheep/claude-skills/tree/main/skills/ai-log) = 客户端**：专职记录日志、本地离线渲染、（可选）推送云端；自包含，只装它即可全功能本地离线使用。
 > - **Ailogy（本仓库）= 纯后端**：只负责收集 / 存储 / 网页呈现多设备汇聚的日志，**自身不产生日志、不含写日志的 CLI**。
